@@ -1,0 +1,53 @@
+{
+  "name": "obichops-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/local.ts",
+    "build": "node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit",
+    "seed": "tsx scripts/seed.ts",
+    "offline": "npm run build && serverless offline --stage staging",
+    "deploy": "npm run build && serverless deploy --stage staging",
+    "deploy:prod": "npm run build && serverless deploy --stage prod",
+    "sam:build": "npm run build && sam build -t infra/template.yaml",
+    "sam:deploy": "sam deploy --guided"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1075.0",
+    "@aws-sdk/client-secrets-manager": "^3.1075.0",
+    "@aws-sdk/s3-request-presigner": "^3.1075.0",
+    "@codegenie/serverless-express": "^4.16.0",
+    "@getbrevo/brevo": "^2.2.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-stringify": "^6.8.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.7.2",
+    "mongodb": "^7.3.0",
+    "mongoose": "^8.9.5",
+    "pdfkit": "^0.19.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/luxon": "^3.7.2",
+    "@types/node": "^22.10.5",
+    "@types/pdfkit": "^0.17.6",
+    "esbuild": "^0.24.2",
+    "serverless": "^3.40.0",
+    "serverless-offline": "^13.9.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

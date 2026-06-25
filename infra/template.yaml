@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Obi's Chops API - legacy SAM deploy (prefer backend/serverless.yml)
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    Timeout: 30
+    MemorySize: 512
+    Environment:
+      Variables:
+        NODE_ENV: production
+        MONGODB_URI: !Ref MongoDbUri
+        JWT_SECRET: !Ref JwtSecret
+        JWT_EXPIRES_IN: 7d
+        EMAIL_PROVIDER: !Ref EmailProvider
+        BREVO_API_KEY: !Ref BrevoApiKey
+        BREVO_SENDER_EMAIL: !Ref BrevoSenderEmail
+        BREVO_SENDER_NAME: !Ref BrevoSenderName
+        APP_BASE_URL: !Ref AppBaseUrl
+        AWS_REGION: !Ref AWS::Region
+        S3_UPLOADS_BUCKET: !Ref ExcessPaymentBucket
+
+Parameters:
+  MongoDbUri:
+    Type: String
+    NoEcho: true
+  JwtSecret:
+    Type: String
+    NoEcho: true
+  EmailProvider:
+    Type: String
+    Default: stub
+    AllowedValues:
+      - stub
+      - brevo
+  BrevoApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+  BrevoSenderEmail:
+    Type: String
+    Default: ""
+  BrevoSenderName:
+    Type: String
+    Default: "Obi's Chops"
+  AppBaseUrl:
+    Type: String
+    Default: https://app.obichops.com
+
+Resources:
+  ExcessPaymentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - !Ref AppBaseUrl
+            MaxAge: 3000
+
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - OPTIONS
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda.lambdaHandler
+      CodeUri: ../dist/
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            PayloadFormatVersion: "2.0"
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - S3CrudPolicy:
+            BucketName: !Ref ExcessPaymentBucket
+
+  CronFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: cron/handler.cronHandler
+      CodeUri: ../dist/
+      Events:
+        DailyReminderSchedule:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 day)
+            Description: Daily reminder cron stub
+      Policies:
+        - AWSLambdaBasicExecutionRole
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API endpoint
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com"
+  ApiFunctionArn:
+    Value: !GetAtt ApiFunction.Arn
+  CronFunctionArn:
+    Value: !GetAtt CronFunction.Arn
+  ExcessPaymentBucketName:
+    Description: S3 bucket for excess payment proof uploads
+    Value: !Ref ExcessPaymentBucket

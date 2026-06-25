@@ -1,0 +1,129 @@
+service: obichops-api
+
+frameworkVersion: "^3.0.0"
+
+# Local deploy config can use backend/.env (see .env.example)
+useDotenv: true
+
+custom:
+  stage: ${opt:stage, 'staging'}
+  secretName: obichops/${self:custom.stage}/secrets
+  secretArn: arn:aws:secretsmanager:${aws:region}:${aws:accountId}:secret:${self:custom.secretName}
+  uploadsBucket: ${env:S3_UPLOADS_BUCKET, 'obichops-uploads-${sls:stage}'}
+  stages:
+    staging:
+      memorySize: 512
+      timeout: 30
+      logRetention: 7
+    prod:
+      memorySize: 1024
+      timeout: 60
+      logRetention: 30
+  serverless-offline:
+    httpPort: 3001
+    noPrependStageInUrl: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  architecture: arm64
+  region: ${env:AWS_REGION, 'eu-west-1'}
+  stage: ${self:custom.stage}
+  timeout: ${self:custom.stages.${self:custom.stage}.timeout, 30}
+  logRetentionInDays: ${self:custom.stages.${self:custom.stage}.logRetention, 7}
+  environment:
+    NODE_ENV: ${self:custom.stage}
+    STAGE: ${self:custom.stage}
+    SECRETS_NAME: ${self:custom.secretName}
+    AWS_REGION: ${env:AWS_REGION, 'eu-west-1'}
+    S3_UPLOADS_BUCKET: ${self:custom.uploadsBucket}
+    JWT_EXPIRES_IN: 7d
+    EMAIL_PROVIDER: ${env:EMAIL_PROVIDER, 'brevo'}
+    APP_BASE_URL: ${env:APP_BASE_URL, 'https://app.obichops.com'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:GetObject
+            - s3:DeleteObject
+          Resource: "arn:aws:s3:::${self:custom.uploadsBucket}/*"
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource: "${self:custom.secretArn}-*"
+
+plugins:
+  - serverless-offline
+
+functions:
+  app:
+    handler: dist/lambda.lambdaHandler
+    timeout: ${self:custom.stages.${self:custom.stage}.timeout, 30}
+    memorySize: ${self:custom.stages.${self:custom.stage}.memorySize, 512}
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+
+  cron:
+    handler: dist/cron/handler.cronHandler
+    timeout: 300
+    memorySize: ${self:custom.stages.${self:custom.stage}.memorySize, 512}
+    events:
+      - schedule:
+          rate: rate(1 day)
+          description: Daily menu-week reminders and window transitions
+
+package:
+  individually: false
+  excludeDevDependencies: true
+  patterns:
+    - "!node_modules/.cache/**"
+    - "!.git/**"
+    - "!scripts/**"
+    - "!src/**"
+    - "!.env*"
+    - "!infra/**"
+    - "dist/**"
+    - "node_modules/@aws-sdk/**"
+    - "node_modules/@smithy/**"
+    - "node_modules/@codegenie/**"
+    - "node_modules/fast-xml-parser/**"
+    - "node_modules/tslib/**"
+
+resources:
+  Resources:
+    ExcessPaymentBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.uploadsBucket}
+        BucketEncryption:
+          ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+        CorsConfiguration:
+          CorsRules:
+            - AllowedHeaders:
+                - "*"
+              AllowedMethods:
+                - PUT
+                - GET
+                - HEAD
+              AllowedOrigins:
+                - ${env:APP_BASE_URL, 'https://app.obichops.com'}
+              MaxAge: 3000
+
+  Outputs:
+    ExcessPaymentBucketName:
+      Description: S3 bucket for excess payment proof uploads
+      Value: !Ref ExcessPaymentBucket
