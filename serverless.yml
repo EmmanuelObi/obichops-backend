@@ -27,7 +27,7 @@ provider:
   name: aws
   runtime: nodejs20.x
   architecture: arm64
-  region: ${env:AWS_REGION, 'eu-west-1'}
+  region: ${env:AWS_REGION, 'us-east-1'}
   stage: ${self:custom.stage}
   timeout: ${self:custom.stages.${self:custom.stage}.timeout, 30}
   logRetentionInDays: ${self:custom.stages.${self:custom.stage}.logRetention, 7}
@@ -35,7 +35,7 @@ provider:
     NODE_ENV: ${self:custom.stage}
     STAGE: ${self:custom.stage}
     SECRETS_NAME: ${self:custom.secretName}
-    AWS_REGION: ${env:AWS_REGION, 'eu-west-1'}
+    AWS_REGION: ${env:AWS_REGION, 'us-east-1'}
     S3_UPLOADS_BUCKET: ${self:custom.uploadsBucket}
     JWT_EXPIRES_IN: 7d
     EMAIL_PROVIDER: ${env:EMAIL_PROVIDER, 'brevo'}
