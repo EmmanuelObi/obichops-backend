@@ -13,11 +13,9 @@ custom:
   stages:
     staging:
       memorySize: 512
-      timeout: 30
       logRetention: 7
     prod:
       memorySize: 1024
-      timeout: 60
       logRetention: 30
   serverless-offline:
     httpPort: 3001
@@ -29,7 +27,7 @@ provider:
   architecture: arm64
   region: ${env:AWS_REGION, 'us-east-1'}
   stage: ${self:custom.stage}
-  timeout: ${self:custom.stages.${self:custom.stage}.timeout, 30}
+  timeout: 30
   logRetentionInDays: ${self:custom.stages.${self:custom.stage}.logRetention, 7}
   environment:
     NODE_ENV: ${self:custom.stage}
@@ -60,7 +58,7 @@ plugins:
 functions:
   app:
     handler: dist/lambda.lambdaHandler
-    timeout: ${self:custom.stages.${self:custom.stage}.timeout, 30}
+    timeout: 30
     memorySize: ${self:custom.stages.${self:custom.stage}.memorySize, 512}
     events:
       - httpApi:
