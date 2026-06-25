@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import { getEmailAdapter } from "../../email/factory.js";
 import {
-  AllowedEmail,
   MenuWeek,
   Order,
   ReminderLog,
@@ -9,19 +8,29 @@ import {
   Workspace,
 } from "../../models/index.js";
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
-import type { ReminderType } from "../../types/reminders.js";
+import {
+  REMINDER_FRIDAY_EVENING_HOUR,
+  REMINDER_FRIDAY_EVENING_MINUTE,
+  REMINDER_SATURDAY_MORNING_HOUR,
+  REMINDER_SATURDAY_MORNING_MINUTE,
+  type ReminderType,
+} from "../../types/reminders.js";
 import { weekDateRangeLabel } from "../export/loadExportData.js";
 import { getWorkspaceTimezone } from "../menuWeekService.js";
 
 const CRON_WINDOW_MINUTES = 15;
 
-function isDueWithinWindow(target: Date, now: Date, windowMinutes = CRON_WINDOW_MINUTES): boolean {
+function isDueWithinWindow(
+  target: Date,
+  now: Date,
+  windowMinutes = CRON_WINDOW_MINUTES,
+): boolean {
   const targetMs = target.getTime();
   const nowMs = now.getTime();
   return nowMs >= targetMs && nowMs < targetMs + windowMinutes * 60 * 1000;
 }
 
-function nudgeTimeOnCloseDay(
+function localTimeOnCloseDay(
   closesAt: Date,
   timezone: string,
   hour: number,
@@ -34,17 +43,19 @@ function nudgeTimeOnCloseDay(
     .toJSDate();
 }
 
-async function getStaffEmails(workspaceId: string): Promise<string[]> {
-  const users = await User.find({ workspaceId, role: "STAFF", isActive: true });
-  if (users.length > 0) {
-    return users.map((u) => u.email);
-  }
-  const allowed = await AllowedEmail.find({
-    workspaceId,
-    role: "STAFF",
-    isActive: true,
-  });
-  return allowed.map((a) => a.email);
+/** Friday before the Saturday close day (ordering window's Friday). */
+function fridayEveningNudgeAt(closesAt: Date, timezone: string): Date {
+  const closeDay = DateTime.fromJSDate(closesAt, { zone: "utc" }).setZone(timezone);
+  const friday = closeDay.minus({ days: 1 });
+  return friday
+    .set({
+      hour: REMINDER_FRIDAY_EVENING_HOUR,
+      minute: REMINDER_FRIDAY_EVENING_MINUTE,
+      second: 0,
+      millisecond: 0,
+    })
+    .toUTC()
+    .toJSDate();
 }
 
 async function getPendingStaffEmails(
@@ -114,19 +125,23 @@ async function processWeekReminders(
   },
   now: Date,
 ): Promise<void> {
+  if (week.status !== "OPEN" || now >= week.orderWindowClosesAt) {
+    return;
+  }
+
   const weekLabel = weekDateRangeLabel(week.weekStart, timezone);
   const closesLabel = DateTime.fromJSDate(week.orderWindowClosesAt, { zone: "utc" })
     .setZone(timezone)
     .toFormat("ccc d LLL, h:mm a");
 
+  // Friday #1 — when the order window opens (default Fri 2:00 PM). Staff who have not ordered only.
   if (
     settings.reminderWindowOpen !== false &&
-    week.status === "OPEN" &&
     isDueWithinWindow(week.orderWindowOpensAt, now)
   ) {
-    const logged = await logReminder(workspaceId, week._id.toString(), "WINDOW_OPEN", 0);
+    const logged = await logReminder(workspaceId, week._id.toString(), "FRIDAY_REMINDER_1", 0);
     if (logged) {
-      const recipients = await getStaffEmails(workspaceId);
+      const recipients = await getPendingStaffEmails(workspaceId, week._id.toString());
       await sendReminderEmails(
         recipients,
         `Ordering open — week of ${weekLabel}`,
@@ -134,61 +149,56 @@ async function processWeekReminders(
         `Ordering for week of ${weekLabel} is now open. Closes ${closesLabel}.`,
       );
       await ReminderLog.updateOne(
-        { menuWeekId: week._id, type: "WINDOW_OPEN" },
+        { menuWeekId: week._id, type: "FRIDAY_REMINDER_1" },
         { recipientCount: recipients.length },
       );
     }
   }
 
-  const pendingNudgeAt = nudgeTimeOnCloseDay(
-    week.orderWindowClosesAt,
-    timezone,
-    8,
-    0,
-  );
+  // Friday #2 — evening nudge (default 8:00 PM). Staff who have not ordered only.
+  const fridayEveningAt = fridayEveningNudgeAt(week.orderWindowClosesAt, timezone);
   if (
     settings.reminderPendingNudge !== false &&
-    (week.status === "OPEN" || week.status === "DRAFT") &&
-    isDueWithinWindow(pendingNudgeAt, now)
+    isDueWithinWindow(fridayEveningAt, now)
   ) {
-    const logged = await logReminder(workspaceId, week._id.toString(), "PENDING_NUDGE", 0);
+    const logged = await logReminder(workspaceId, week._id.toString(), "FRIDAY_REMINDER_2", 0);
     if (logged) {
       const recipients = await getPendingStaffEmails(workspaceId, week._id.toString());
       await sendReminderEmails(
         recipients,
         `Reminder: order for week of ${weekLabel}`,
-        `<p>You haven't placed your meal order yet. Ordering closes at <strong>${closesLabel}</strong>.</p>`,
+        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>`,
         `You haven't ordered yet. Closes ${closesLabel}.`,
       );
       await ReminderLog.updateOne(
-        { menuWeekId: week._id, type: "PENDING_NUDGE" },
+        { menuWeekId: week._id, type: "FRIDAY_REMINDER_2" },
         { recipientCount: recipients.length },
       );
     }
   }
 
-  const finalNudgeAt = nudgeTimeOnCloseDay(
+  // Saturday morning — final nudge (default 8:00 AM, before typical 10:00 AM close).
+  const saturdayMorningAt = localTimeOnCloseDay(
     week.orderWindowClosesAt,
     timezone,
-    9,
-    30,
+    REMINDER_SATURDAY_MORNING_HOUR,
+    REMINDER_SATURDAY_MORNING_MINUTE,
   );
   if (
     settings.reminderFinalNudge !== false &&
-    (week.status === "OPEN" || week.status === "DRAFT") &&
-    isDueWithinWindow(finalNudgeAt, now)
+    isDueWithinWindow(saturdayMorningAt, now)
   ) {
-    const logged = await logReminder(workspaceId, week._id.toString(), "FINAL_NUDGE", 0);
+    const logged = await logReminder(workspaceId, week._id.toString(), "SATURDAY_REMINDER", 0);
     if (logged) {
       const recipients = await getPendingStaffEmails(workspaceId, week._id.toString());
       await sendReminderEmails(
         recipients,
-        `Final reminder: 30 minutes left`,
-        `<p>Final reminder — you have <strong>30 minutes</strong> left to order for the week of ${weekLabel}. Closes ${closesLabel}.</p>`,
-        `Final reminder: 30 minutes left. Closes ${closesLabel}.`,
+        `Final reminder: order by ${closesLabel}`,
+        `<p>Final reminder — please place your order for the week of <strong>${weekLabel}</strong> before ordering closes at <strong>${closesLabel}</strong>.</p>`,
+        `Final reminder: order before ${closesLabel}.`,
       );
       await ReminderLog.updateOne(
-        { menuWeekId: week._id, type: "FINAL_NUDGE" },
+        { menuWeekId: week._id, type: "SATURDAY_REMINDER" },
         { recipientCount: recipients.length },
       );
     }

@@ -137,8 +137,8 @@ async function main() {
     process.env.SEED_VERTO_ADMIN_EMAIL ?? "joy.johnson@vertofx.com";
   const vertoAdminPassword =
     process.env.SEED_VERTO_ADMIN_PASSWORD ?? "ChangeMeAdmin123!";
-  const staffEmail = process.env.SEED_STAFF_EMAIL ?? "emmanuel.obi@vertofx.com";
-  const staffPassword = process.env.SEED_STAFF_PASSWORD ?? "ChangeMeStaff123!";
+  const staffEmail = process.env.SEED_STAFF_EMAIL?.trim().toLowerCase();
+  const staffPassword = process.env.SEED_STAFF_PASSWORD;
 
   let superAdmin = await User.findOne({ email: superEmail, workspaceId: null });
   if (!superAdmin) {
@@ -228,31 +228,41 @@ async function main() {
     console.log("Seeded menu for:", vendor.name);
   }
 
-  await AllowedEmail.findOneAndUpdate(
-    { workspaceId, email: staffEmail.toLowerCase() },
-    { workspaceId, email: staffEmail.toLowerCase(), role: "STAFF" },
-    { upsert: true, new: true },
-  );
-
-  let staffUser = await User.findOne({ email: staffEmail, workspaceId });
-  if (!staffUser) {
-    staffUser = await User.create({
-      email: staffEmail.toLowerCase(),
-      passwordHash: await hashPassword(staffPassword),
-      role: "STAFF",
-      workspaceId,
-      mustChangePassword: true,
-    });
-    console.log("Created staff user:", staffEmail);
-  } else {
-    if (staffUser.name === "Verto Staff") {
-      staffUser.name = undefined;
-      staffUser.firstName = undefined;
-      staffUser.lastName = undefined;
-      staffUser.mustChangePassword = true;
-      await staffUser.save();
+  if (staffEmail) {
+    if (!staffPassword) {
+      throw new Error(
+        "SEED_STAFF_PASSWORD is required when SEED_STAFF_EMAIL is set",
+      );
     }
-    console.log("Staff user already exists:", staffEmail);
+
+    await AllowedEmail.findOneAndUpdate(
+      { workspaceId, email: staffEmail },
+      { workspaceId, email: staffEmail, role: "STAFF" },
+      { upsert: true, new: true },
+    );
+
+    let staffUser = await User.findOne({ email: staffEmail, workspaceId });
+    if (!staffUser) {
+      staffUser = await User.create({
+        email: staffEmail,
+        passwordHash: await hashPassword(staffPassword),
+        role: "STAFF",
+        workspaceId,
+        mustChangePassword: true,
+      });
+      console.log("Created staff user:", staffEmail);
+    } else {
+      if (staffUser.name === "Verto Staff") {
+        staffUser.name = undefined;
+        staffUser.firstName = undefined;
+        staffUser.lastName = undefined;
+        staffUser.mustChangePassword = true;
+        await staffUser.save();
+      }
+      console.log("Staff user already exists:", staffEmail);
+    }
+  } else {
+    console.log("Skipping staff user (set SEED_STAFF_EMAIL to seed one)");
   }
 
   const primaryVendor = await Vendor.findOne({

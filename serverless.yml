@@ -75,8 +75,8 @@ functions:
     memorySize: ${self:custom.stages.${self:custom.stage}.memorySize, 512}
     events:
       - schedule:
-          rate: rate(1 day)
-          description: Daily menu-week reminders and window transitions
+          rate: rate(15 minutes)
+          description: Menu-week reminders and window transitions (15 min cadence)
 
 package:
   individually: false

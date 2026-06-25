@@ -17,9 +17,9 @@ const workspaceSettingsSchema = new Schema(
       type: [{ type: String, enum: DAYS_OF_WEEK }],
       default: DEFAULT_ORDERABLE_DAYS,
     },
-    reminderWindowOpen: { type: Boolean, default: true },
-    reminderPendingNudge: { type: Boolean, default: true },
-    reminderFinalNudge: { type: Boolean, default: true },
+    reminderWindowOpen: { type: Boolean, default: true }, // Friday — when ordering opens
+    reminderPendingNudge: { type: Boolean, default: true }, // Friday — 8:00 PM
+    reminderFinalNudge: { type: Boolean, default: true }, // Saturday — 8:00 AM
     allowedEmailDomains: {
       type: [{ type: String, lowercase: true, trim: true }],
       default: [],
