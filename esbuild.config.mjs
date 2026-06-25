@@ -7,7 +7,10 @@ const shared = {
   target: "node20",
   format: "esm",
   sourcemap: true,
-  external: ["@aws-sdk/*"],
+  external: [
+    "@aws-sdk/client-s3",
+    "@aws-sdk/s3-request-presigner",
+  ],
   logLevel: "info",
 };
 

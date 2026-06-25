@@ -49,7 +49,9 @@ provider:
         - Effect: Allow
           Action:
             - secretsmanager:GetSecretValue
-          Resource: "${self:custom.secretArn}-*"
+          Resource:
+            - "${self:custom.secretArn}-*"
+            - "arn:aws:secretsmanager:${aws:region}:${aws:accountId}:secret:obichops/*"
 
 plugins:
   - serverless-offline

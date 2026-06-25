@@ -1,5 +1,5 @@
 import { configure } from "@codegenie/serverless-express";
-import type { Handler } from "aws-lambda";
+import type { APIGatewayProxyEventV2, Handler } from "aws-lambda";
 import { createApp } from "./app.js";
 import { loadSecretsIntoEnv } from "./config/loadSecrets.js";
 
@@ -8,6 +8,11 @@ const baseHandler = configure({ app });
 
 let ready = false;
 
+function isHealthCheck(event: APIGatewayProxyEventV2): boolean {
+  const path = event.rawPath ?? event.requestContext?.http?.path ?? "";
+  return path === "/health" || path === "/health/";
+}
+
 async function ensureReady(): Promise<void> {
   if (ready) return;
   await loadSecretsIntoEnv();
@@ -15,6 +20,23 @@ async function ensureReady(): Promise<void> {
 }
 
 export const lambdaHandler: Handler = async (event, context, callback) => {
-  await ensureReady();
+  const apiEvent = event as APIGatewayProxyEventV2;
+
+  if (!isHealthCheck(apiEvent)) {
+    try {
+      await ensureReady();
+    } catch (err) {
+      console.error("Lambda init failed:", err);
+      return {
+        statusCode: 503,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          error: "Service unavailable",
+          message: err instanceof Error ? err.message : "Initialization failed",
+        }),
+      };
+    }
+  }
+
   return baseHandler(event, context, callback);
 };
