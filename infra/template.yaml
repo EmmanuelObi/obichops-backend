@@ -20,7 +20,6 @@ Globals:
         BREVO_SENDER_EMAIL: !Ref BrevoSenderEmail
         BREVO_SENDER_NAME: !Ref BrevoSenderName
         APP_BASE_URL: !Ref AppBaseUrl
-        AWS_REGION: !Ref AWS::Region
         S3_UPLOADS_BUCKET: !Ref ExcessPaymentBucket
 
 Parameters:

@@ -11,7 +11,7 @@ const envSchema = z.object({
   BREVO_SENDER_EMAIL: z.string().email().optional(),
   BREVO_SENDER_NAME: z.string().optional(),
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
-  AWS_REGION: z.string().default("eu-west-1"),
+  AWS_REGION: z.string().default("us-east-1"),
   S3_UPLOADS_BUCKET: z.string().min(1).optional(),
 });
 
