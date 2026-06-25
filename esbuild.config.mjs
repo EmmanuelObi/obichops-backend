@@ -5,11 +5,12 @@ const shared = {
   bundle: true,
   platform: "node",
   target: "node20",
-  format: "esm",
+  format: "cjs",
   sourcemap: true,
   external: [
     "@aws-sdk/client-s3",
     "@aws-sdk/s3-request-presigner",
+    "@codegenie/serverless-express",
   ],
   logLevel: "info",
 };
@@ -30,7 +31,9 @@ for (const { in: entry, out } of entries) {
   console.log(`Built ${out}.js`);
 }
 
+// Root package.json has "type":"module" — without this, Lambda treats dist/*.js as ESM
+// and module.exports is ignored (empty handler, "Dynamic require" errors).
 await writeFile(
   "dist/package.json",
-  JSON.stringify({ type: "module" }, null, 2) + "\n",
+  JSON.stringify({ type: "commonjs" }, null, 2) + "\n",
 );
