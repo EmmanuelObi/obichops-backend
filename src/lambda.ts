@@ -5,7 +5,14 @@ import { loadSecretsIntoEnv } from "./config/loadSecrets.js";
 import { connectDb } from "./db/connect.js";
 
 const app = createApp();
-const baseHandler = configure({ app });
+const baseHandler = configure({
+  app,
+  // API Gateway HTTP API requires base64 for non-text bodies. The library only
+  // treats image/* as binary by default; PDF streams are corrupted without this.
+  binarySettings: {
+    contentTypes: ["image/*", "application/pdf"],
+  },
+});
 
 let ready = false;
 

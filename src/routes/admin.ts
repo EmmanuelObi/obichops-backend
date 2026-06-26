@@ -18,6 +18,7 @@ import { createExcessPaymentDownloadUrl } from "../services/s3.js";
 import { serializeOrder } from "../services/menuWeekService.js";
 import { menuItemRouter, vendorMenuRouter } from "./admin/menu-items.js";
 import menuWeeksRouter from "./admin/menu-weeks.js";
+import reportsRouter from "./admin/reports.js";
 import vendorsRouter from "./admin/vendors.js";
 
 const router = Router();
@@ -280,5 +281,6 @@ router.use("/vendors", vendorsRouter);
 router.use("/vendors/:vendorId/menu-items", vendorMenuRouter);
 router.use("/menu-items", menuItemRouter);
 router.use("/menu-weeks", menuWeeksRouter);
+router.use("/reports", reportsRouter);
 
 export default router;
