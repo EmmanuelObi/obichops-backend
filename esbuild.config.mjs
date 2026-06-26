@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { mkdir, writeFile } from "node:fs/promises";
+import { cp, mkdir, writeFile } from "node:fs/promises";
 
 const shared = {
   bundle: true,
@@ -30,6 +30,11 @@ for (const { in: entry, out } of entries) {
   });
   console.log(`Built ${out}.js`);
 }
+
+// pdfkit reads standard-font metrics from disk at runtime (__dirname + "/data/*.afm").
+// esbuild bundles the JS but not those files — copy them beside the Lambda bundle.
+await cp("node_modules/pdfkit/js/data", "dist/data", { recursive: true });
+console.log("Copied pdfkit font metrics to dist/data");
 
 // Root package.json has "type":"module" — without this, Lambda treats dist/*.js as ESM
 // and module.exports is ignored (empty handler, "Dynamic require" errors).
