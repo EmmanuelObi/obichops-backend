@@ -9,7 +9,7 @@ import {
   type AuthenticatedRequest,
 } from "../../middleware/auth.js";
 import { requireWorkspaceContext } from "../../middleware/workspace.js";
-import { MenuWeek, Order, ReminderLog, User, Vendor, VendorDispatch } from "../../models/index.js";
+import { MenuWeek, Order, ReminderLog, User, Vendor, VendorDispatch, Workspace } from "../../models/index.js";
 import { MENU_WEEK_STATUSES } from "../../models/MenuWeek.js";
 import { DAYS_OF_WEEK } from "../../types/days.js";
 import {
@@ -34,6 +34,7 @@ import {
 } from "../../services/export/pdfExport.js";
 import { getUserDisplayName } from "../../services/userDisplay.js";
 import { getExcessPaymentStatus } from "../../types/excessPayment.js";
+import { sendOrderingOpenIfNeeded } from "../../services/reminders/sendOrderingOpen.js";
 
 const router = Router();
 
@@ -227,8 +228,16 @@ router.patch(
         .toJSDate();
     }
 
+    const openingWeek = body.status === "OPEN" && week.status === "DRAFT";
+    let openNotificationSent = false;
+    let openNotificationError: string | undefined;
+
     if (body.status) {
-      if (body.status === "OPEN" && week.status === "DRAFT") {
+      if (openingWeek) {
+        const now = new Date();
+        if (now < week.orderWindowOpensAt) {
+          week.orderWindowOpensAt = now;
+        }
         week.status = "OPEN";
       } else if (body.status === "CLOSED") {
         week.status = "CLOSED";
@@ -241,7 +250,32 @@ router.patch(
     }
 
     await week.save();
-    res.json({ menuWeek: serializeMenuWeek(week, timezone) });
+
+    if (openingWeek) {
+      const workspace = await Workspace.findById(workspaceId);
+      try {
+        const result = await sendOrderingOpenIfNeeded({
+          workspaceId,
+          week,
+          timezone,
+          settings: {
+            reminderWindowOpen: workspace?.settings?.reminderWindowOpen,
+          },
+        });
+        openNotificationSent = result.sent;
+      } catch (err) {
+        openNotificationError =
+          err instanceof Error ? err.message : "Failed to send open notification";
+        console.error("Open notification failed:", err);
+      }
+    }
+
+    res.json({
+      menuWeek: serializeMenuWeek(week, timezone),
+      ...(openingWeek
+        ? { openNotificationSent, openNotificationError }
+        : {}),
+    });
   }),
 );
 
