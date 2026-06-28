@@ -44,11 +44,15 @@ const resetSchema = z.object({
   password: z.string().min(8),
 });
 
-const changePasswordSchema = z.object({
+const changePasswordProfileSchema = z.object({
+  newPassword: z.string().min(8),
+  firstName: z.string().trim().min(1),
+  lastName: z.string().trim().min(1),
+});
+
+const changePasswordExistingSchema = z.object({
   currentPassword: z.string().min(1),
   newPassword: z.string().min(8),
-  firstName: z.string().trim().min(1).optional(),
-  lastName: z.string().trim().min(1).optional(),
 });
 
 async function serializeUser(user: {
@@ -209,6 +213,7 @@ router.post(
       workspaceId: user.workspaceId ? user.workspaceId.toString() : null,
       role: user.role,
       email: user.email,
+      needsProfileCompletion: userNeedsProfileCompletion(user),
     });
 
     res.json({ user: await serializeUser(user), token });
@@ -301,7 +306,6 @@ router.post(
   "/change-password",
   requireAuth,
   asyncHandler(async (req, res) => {
-    const body = changePasswordSchema.parse(req.body);
     const auth = (req as AuthenticatedRequest).auth!;
     const user = await User.findById(auth.sub);
     if (!user) {
@@ -309,33 +313,47 @@ router.post(
       return;
     }
 
-    const valid = await verifyPassword(body.currentPassword, user.passwordHash);
-    if (!valid) {
-      res.status(401).json({ error: "Current password is incorrect" });
-      return;
+    if (auth.needsProfileCompletion) {
+      const body = changePasswordProfileSchema.parse(req.body);
+
+      user.passwordHash = await hashPassword(body.newPassword);
+      user.mustChangePassword = false;
+      user.firstName = body.firstName;
+      user.lastName = body.lastName;
+      user.name = `${body.firstName} ${body.lastName}`;
+      await user.save();
+
+      const token = signAccessToken({
+        userId: user._id.toString(),
+        workspaceId: user.workspaceId ? user.workspaceId.toString() : null,
+        role: user.role,
+        email: user.email,
+        needsProfileCompletion: false,
+      });
+
+      res.json({ message: "Profile completed", user: await serializeUser(user), token });
+    } else {
+      const body = changePasswordExistingSchema.parse(req.body);
+
+      const valid = await verifyPassword(body.currentPassword, user.passwordHash);
+      if (!valid) {
+        res.status(401).json({ error: "Current password is incorrect" });
+        return;
+      }
+
+      user.passwordHash = await hashPassword(body.newPassword);
+      await user.save();
+
+      const token = signAccessToken({
+        userId: user._id.toString(),
+        workspaceId: user.workspaceId ? user.workspaceId.toString() : null,
+        role: user.role,
+        email: user.email,
+        needsProfileCompletion: false,
+      });
+
+      res.json({ message: "Password updated", user: await serializeUser(user), token });
     }
-
-    const needsProfile = userNeedsProfileCompletion(user);
-    if (needsProfile && (!body.firstName || !body.lastName)) {
-      res.status(400).json({ error: "First name and last name are required" });
-      return;
-    }
-
-    user.passwordHash = await hashPassword(body.newPassword);
-    user.mustChangePassword = false;
-
-    if (body.firstName) user.firstName = body.firstName;
-    if (body.lastName) user.lastName = body.lastName;
-    if (user.firstName && user.lastName) {
-      user.name = `${user.firstName} ${user.lastName}`;
-    }
-
-    await user.save();
-
-    res.json({
-      message: "Password updated",
-      user: await serializeUser(user),
-    });
   }),
 );
 

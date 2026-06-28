@@ -5,4 +5,5 @@ export interface JwtPayload {
   workspaceId: string | null;
   role: Role;
   email: string;
+  needsProfileCompletion?: boolean;
 }
