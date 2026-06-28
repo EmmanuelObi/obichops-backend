@@ -9,28 +9,52 @@ import {
 } from "../../middleware/auth.js";
 import { requireWorkspaceContext } from "../../middleware/workspace.js";
 import { Vendor } from "../../models/Vendor.js";
+import { serializeVendorPaymentFields } from "../../services/vendor.js";
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
 
+const bankFieldsSchema = {
+  accountName: z.string().trim().min(1, "Account name is required"),
+  bankName: z.string().trim().min(1, "Bank name is required"),
+  accountNumber: z.string().trim().min(1, "Account number is required"),
+};
+
 const createVendorSchema = z.object({
   name: z.string().trim().min(1),
   email: z.string().email(),
+  ...bankFieldsSchema,
   isActive: z.boolean().optional(),
 });
 
-const updateVendorSchema = z.object({
-  name: z.string().trim().min(1).optional(),
-  email: z.string().email().optional(),
-  isActive: z.boolean().optional(),
-});
+const updateVendorSchema = z
+  .object({
+    name: z.string().trim().min(1).optional(),
+    email: z.string().email().optional(),
+    accountName: z.string().trim().min(1).optional(),
+    bankName: z.string().trim().min(1).optional(),
+    accountNumber: z.string().trim().min(1).optional(),
+    isActive: z.boolean().optional(),
+  })
+  .refine(
+    (data) => {
+      const bankFields = [data.accountName, data.bankName, data.accountNumber];
+      const anySet = bankFields.some((field) => field !== undefined);
+      const allSet = bankFields.every((field) => field !== undefined);
+      return !anySet || allSet;
+    },
+    { message: "Provide account name, bank name, and account number together" },
+  );
 
 function serializeVendor(doc: {
   _id: mongoose.Types.ObjectId;
   workspaceId: mongoose.Types.ObjectId;
   name: string;
   email: string;
+  accountName?: string | null;
+  bankName?: string | null;
+  accountNumber?: string | null;
   isActive: boolean;
   createdAt?: Date;
 }) {
@@ -39,6 +63,7 @@ function serializeVendor(doc: {
     workspaceId: doc.workspaceId.toString(),
     name: doc.name,
     email: doc.email,
+    ...serializeVendorPaymentFields(doc),
     isActive: doc.isActive,
     createdAt: doc.createdAt,
   };
@@ -66,6 +91,9 @@ router.post(
       workspaceId,
       name: body.name,
       email: body.email.toLowerCase(),
+      accountName: body.accountName,
+      bankName: body.bankName,
+      accountNumber: body.accountNumber,
       isActive: body.isActive ?? true,
     });
 
@@ -113,6 +141,11 @@ router.patch(
       {
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.email !== undefined ? { email: body.email.toLowerCase() } : {}),
+        ...(body.accountName !== undefined ? { accountName: body.accountName } : {}),
+        ...(body.bankName !== undefined ? { bankName: body.bankName } : {}),
+        ...(body.accountNumber !== undefined
+          ? { accountNumber: body.accountNumber }
+          : {}),
         ...(body.isActive !== undefined ? { isActive: body.isActive } : {}),
       },
       { new: true },

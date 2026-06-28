@@ -9,9 +9,11 @@ import { Vendor } from "../models/index.js";
 import {
   findCurrentMenuWeek,
   getFilteredMenuForWeek,
+  getPackMenuForWeek,
   getWorkspaceTimezone,
   serializeMenuWeek,
 } from "../services/menuWeekService.js";
+import { serializeVendorPaymentFields } from "../services/vendor.js";
 
 const router = Router();
 
@@ -25,7 +27,7 @@ router.get(
 
     const week = await findCurrentMenuWeek(workspaceId);
     if (!week) {
-      res.json({ menuWeek: null, menu: [], vendor: null });
+      res.json({ menuWeek: null, menu: [], packMenu: [], vendor: null });
       return;
     }
 
@@ -34,18 +36,24 @@ router.get(
       _id: week.activeVendorId,
       workspaceId,
     });
-    const menu = await getFilteredMenuForWeek(
-      workspaceId,
-      week.activeVendorId.toString(),
-      week.orderableDays,
-    );
+    const vendorId = week.activeVendorId.toString();
+    const [menu, packMenu] = await Promise.all([
+      getFilteredMenuForWeek(workspaceId, vendorId, week.orderableDays),
+      getPackMenuForWeek(workspaceId, vendorId, week.orderableDays),
+    ]);
 
     res.json({
       menuWeek: serializeMenuWeek(week, timezone),
       vendor: vendor
-        ? { id: vendor._id.toString(), name: vendor.name, email: vendor.email }
+        ? {
+            id: vendor._id.toString(),
+            name: vendor.name,
+            email: vendor.email,
+            ...serializeVendorPaymentFields(vendor),
+          }
         : null,
       menu,
+      packMenu,
     });
   }),
 );

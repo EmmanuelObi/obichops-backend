@@ -88,7 +88,7 @@ export async function getPendingStaffEmails(
         menuWeekId,
         status: "SUBMITTED",
       })
-    ).map((o) => o.userId.toString()),
+    ).map((o) => o.userId?.toString()).filter((id): id is string => Boolean(id)),
   );
 
   return staffUsers

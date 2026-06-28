@@ -14,8 +14,21 @@ import { MENU_WEEK_STATUSES } from "../../models/MenuWeek.js";
 import { DAYS_OF_WEEK } from "../../types/days.js";
 import {
   getWorkspaceTimezone,
+  getFilteredMenuForWeek,
+  getPackMenuForWeek,
   serializeMenuWeek,
+  serializeOrder,
 } from "../../services/menuWeekService.js";
+import {
+  findProxyOrder,
+  listProxyStaffRecipients,
+  resolveProxyRecipient,
+  submitProxyOrder,
+  upsertProxyOrder,
+  type ProxyRecipientInput,
+} from "../../services/adminProxyOrder.js";
+import { getOrderRecipientDisplay } from "../../services/orderRecipient.js";
+import { serializeVendorPaymentFields } from "../../services/vendor.js";
 import {
   computeDefaultOrderWindow,
   DEFAULT_MAX_ORDER_AMOUNT_CENTS,
@@ -32,7 +45,7 @@ import {
   buildPdfExport,
   buildVendorPdfExport,
 } from "../../services/export/pdfExport.js";
-import { getUserDisplayName } from "../../services/userDisplay.js";
+import { getOrderRecipientDisplay } from "../../services/orderRecipient.js";
 import { getExcessPaymentStatus } from "../../types/excessPayment.js";
 import { sendOrderingOpenIfNeeded } from "../../services/reminders/sendOrderingOpen.js";
 
@@ -414,25 +427,28 @@ router.get(
     }
 
     const orders = await Order.find(filter).sort({ submittedAt: -1, updatedAt: -1 });
-    const userIds = [...new Set(orders.map((o) => o.userId.toString()))];
+    const userIds = [
+      ...new Set(
+        orders
+          .map((o) => o.userId?.toString())
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
     const users = await User.find({ _id: { $in: userIds } });
     const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
     res.json({
       orders: orders.map((order) => {
-        const user = userMap.get(order.userId.toString());
+        const user = order.userId ? userMap.get(order.userId.toString()) : null;
+        const recipient = getOrderRecipientDisplay(order, user ?? undefined);
         return {
           id: order._id.toString(),
-          userId: order.userId.toString(),
-          staffName: user
-            ? getUserDisplayName({
-                firstName: user.firstName,
-                lastName: user.lastName,
-                name: user.name,
-                email: user.email,
-              })
-            : "Unknown",
-          staffEmail: user?.email ?? "",
+          userId: order.userId?.toString() ?? null,
+          placedForName: order.placedForName?.trim() ?? null,
+          isCustomRecipient: recipient.isCustom,
+          placedByUserId: order.placedByUserId?.toString() ?? null,
+          staffName: recipient.staffName,
+          staffEmail: recipient.staffEmail,
           status: order.status,
           totalCents: order.totalCents,
           companyCoveredCents: order.companyCoveredCents,
@@ -447,6 +463,254 @@ router.get(
         };
       }),
     });
+  }),
+);
+
+const proxyLineItemSchema = z.object({
+  menuItemId: z.string().min(1),
+  dayOfWeek: z.enum(DAYS_OF_WEEK),
+  quantity: z.number().int().min(1),
+});
+
+const proxyRecipientBodySchema = z.discriminatedUnion("recipientType", [
+  z.object({
+    recipientType: z.literal("STAFF"),
+    userId: z.string().min(1),
+  }),
+  z.object({
+    recipientType: z.literal("CUSTOM"),
+    placedForName: z.string().trim().min(1).max(120),
+  }),
+]);
+
+const upsertProxyOrderSchema = z.object({
+  recipient: proxyRecipientBodySchema,
+  lineItems: z.array(proxyLineItemSchema),
+});
+
+const submitProxyOrderSchema = z.object({
+  orderId: z.string().min(1),
+});
+
+async function getWeekOr404(
+  workspaceId: string,
+  weekId: string,
+  res: { status: (code: number) => { json: (body: unknown) => void } },
+) {
+  if (!mongoose.isValidObjectId(weekId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return null;
+  }
+  const week = await MenuWeek.findOne({ _id: weekId, workspaceId });
+  if (!week) {
+    res.status(404).json({ error: "Menu week not found" });
+    return null;
+  }
+  return week;
+}
+
+router.get(
+  "/:id/ordering-context",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const week = await getWeekOr404(workspaceId, req.params.id, res);
+    if (!week) return;
+
+    const timezone = await getWorkspaceTimezone(workspaceId);
+    const vendor = await Vendor.findOne({
+      _id: week.activeVendorId,
+      workspaceId,
+    });
+    const vendorId = week.activeVendorId.toString();
+    const [menu, packMenu] = await Promise.all([
+      getFilteredMenuForWeek(workspaceId, vendorId, week.orderableDays),
+      getPackMenuForWeek(workspaceId, vendorId, week.orderableDays),
+    ]);
+
+    res.json({
+      menuWeek: serializeMenuWeek(week, timezone),
+      vendor: vendor
+        ? {
+            id: vendor._id.toString(),
+            name: vendor.name,
+            email: vendor.email,
+            ...serializeVendorPaymentFields(vendor),
+          }
+        : null,
+      menu,
+      packMenu,
+    });
+  }),
+);
+
+router.get(
+  "/:id/proxy-recipients",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const week = await getWeekOr404(workspaceId, req.params.id, res);
+    if (!week) return;
+
+    const staff = await listProxyStaffRecipients(workspaceId, week._id);
+    res.json({ staff });
+  }),
+);
+
+router.get(
+  "/:id/proxy-order",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const week = await getWeekOr404(workspaceId, req.params.id, res);
+    if (!week) return;
+
+    const orderId =
+      typeof req.query.orderId === "string" ? req.query.orderId : null;
+    if (orderId) {
+      if (!mongoose.isValidObjectId(orderId)) {
+        res.status(400).json({ error: "Invalid order id" });
+        return;
+      }
+      const order = await Order.findOne({
+        _id: orderId,
+        workspaceId,
+        menuWeekId: week._id,
+      });
+      if (!order) {
+        res.json({ order: null, recipient: null });
+        return;
+      }
+      const recipient =
+        order.userId != null
+          ? {
+              recipientType: "STAFF" as const,
+              userId: order.userId.toString(),
+              placedForName: null,
+              displayName:
+                (
+                  await User.findById(order.userId)
+                )?.email ?? "Staff member",
+            }
+          : {
+              recipientType: "CUSTOM" as const,
+              userId: null,
+              placedForName: order.placedForName ?? "",
+              displayName: order.placedForName?.trim() || "Custom recipient",
+            };
+      if (recipient.recipientType === "STAFF") {
+        const user = await User.findById(order.userId);
+        if (user) {
+          recipient.displayName =
+            [user.firstName?.trim(), user.lastName?.trim()]
+              .filter(Boolean)
+              .join(" ") ||
+            user.name?.trim() ||
+            user.email;
+        }
+      }
+      res.json({ order: serializeOrder(order), recipient });
+      return;
+    }
+
+    const userId = typeof req.query.userId === "string" ? req.query.userId : null;
+    const placedForName =
+      typeof req.query.placedForName === "string" ? req.query.placedForName : null;
+
+    let recipientInput: ProxyRecipientInput | null = null;
+    if (userId) {
+      recipientInput = { recipientType: "STAFF", userId };
+    } else if (placedForName?.trim()) {
+      recipientInput = { recipientType: "CUSTOM", placedForName };
+    } else {
+      res.status(400).json({ error: "Provide orderId, userId, or placedForName" });
+      return;
+    }
+
+    try {
+      const recipient = await resolveProxyRecipient(workspaceId, recipientInput);
+      const order = await findProxyOrder(workspaceId, week._id, recipient);
+      res.json({
+        order: order ? serializeOrder(order) : null,
+        recipient: {
+          recipientType: recipient.type,
+          userId: recipient.userId?.toString() ?? null,
+          placedForName: recipient.placedForName ?? null,
+          displayName: recipient.displayName,
+        },
+      });
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : "Invalid recipient",
+      });
+    }
+  }),
+);
+
+router.put(
+  "/:id/proxy-order",
+  asyncHandler(async (req, res) => {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const week = await getWeekOr404(workspaceId, req.params.id, res);
+    if (!week) return;
+
+    const body = upsertProxyOrderSchema.parse(req.body);
+
+    try {
+      const recipient = await resolveProxyRecipient(workspaceId, body.recipient);
+      const order = await upsertProxyOrder({
+        workspaceId,
+        menuWeek: week,
+        adminUserId: auth.sub,
+        recipient,
+        lineItems: body.lineItems,
+      });
+      res.json({ order });
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : "Could not save order",
+      });
+    }
+  }),
+);
+
+router.post(
+  "/:id/proxy-order/submit",
+  asyncHandler(async (req, res) => {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const week = await getWeekOr404(workspaceId, req.params.id, res);
+    if (!week) return;
+
+    const body = submitProxyOrderSchema.parse(req.body);
+
+    try {
+      const order = await submitProxyOrder({
+        workspaceId,
+        menuWeek: week,
+        adminUserId: auth.sub,
+        orderId: body.orderId,
+      });
+      res.json({ order });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not submit order";
+      const excessCents =
+        err instanceof Error && "excessCents" in err
+          ? (err as Error & { excessCents?: number }).excessCents
+          : undefined;
+      res.status(400).json({
+        error: message,
+        ...(excessCents !== undefined ? { excessCents } : {}),
+      });
+    }
   }),
 );
 

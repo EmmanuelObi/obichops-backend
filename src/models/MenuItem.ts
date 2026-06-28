@@ -1,5 +1,6 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
 import { DAYS_OF_WEEK } from "../types/days.js";
+import { MENU_ITEM_KINDS } from "../types/menuItem.js";
 
 const menuItemSchema = new Schema(
   {
@@ -23,6 +24,12 @@ const menuItemSchema = new Schema(
     name: { type: String, required: true, trim: true },
     description: { type: String, trim: true, default: "" },
     priceCents: { type: Number, required: true, min: 0 },
+    itemKind: {
+      type: String,
+      enum: MENU_ITEM_KINDS,
+      default: "FOOD",
+    },
+    packsRequired: { type: Number, min: 0, default: 0 },
     isAvailable: { type: Boolean, default: true },
   },
   { timestamps: { createdAt: false, updatedAt: true } },

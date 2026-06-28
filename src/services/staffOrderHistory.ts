@@ -151,14 +151,11 @@ export function assertOrderOwnedByUser(
 }
 
 export function assertOrderHasUploadableExcess(order: OrderDocument): void {
-  if (order.status !== "SUBMITTED") {
-    throw new Error("Only submitted orders can include payment proof");
+  if (order.status !== "DRAFT" && order.status !== "SUBMITTED") {
+    throw new Error("Only draft or submitted orders can include payment proof");
   }
   if (order.excessCents <= 0) {
     throw new Error("This order has no excess payment");
-  }
-  if (!order.excessAcknowledged) {
-    throw new Error("Excess was not acknowledged for this order");
   }
   if (order.excessPaidAt) {
     throw new Error("This excess has already been marked as paid");

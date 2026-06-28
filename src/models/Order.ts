@@ -29,7 +29,13 @@ const orderSchema = new Schema(
     userId: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
+    },
+    placedForName: { type: String, trim: true },
+    placedForNameKey: { type: String, trim: true, lowercase: true },
+    placedByUserId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
     },
     menuWeekId: {
       type: Schema.Types.ObjectId,
@@ -61,7 +67,14 @@ const orderSchema = new Schema(
   { timestamps: true },
 );
 
-orderSchema.index({ userId: 1, menuWeekId: 1 }, { unique: true });
+orderSchema.index(
+  { userId: 1, menuWeekId: 1 },
+  { unique: true, partialFilterExpression: { userId: { $type: "objectId" } } },
+);
+orderSchema.index(
+  { menuWeekId: 1, placedForNameKey: 1 },
+  { unique: true, partialFilterExpression: { placedForNameKey: { $type: "string" } } },
+);
 orderSchema.index({ menuWeekId: 1, excessCents: 1 });
 
 export type LineItemSubdocument = InferSchemaType<typeof lineItemSchema>;

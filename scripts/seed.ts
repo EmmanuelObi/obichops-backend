@@ -88,8 +88,20 @@ const WEEKDAY_MENU: Record<
 };
 
 const VENDORS = [
-  { name: "Mama Put Kitchen", email: "orders@mamaput.example" },
-  { name: "Lagos Bites", email: "hello@lagosbites.example" },
+  {
+    name: "Mama Put Kitchen",
+    email: "orders@mamaput.example",
+    accountName: "Mama Put Kitchen Ltd",
+    bankName: "GTBank",
+    accountNumber: "0123456789",
+  },
+  {
+    name: "Lagos Bites",
+    email: "hello@lagosbites.example",
+    accountName: "Lagos Bites Catering",
+    bankName: "Access Bank",
+    accountNumber: "0987654321",
+  },
 ];
 
 const VERTO_ALLOWED_EMAIL_DOMAINS = ["vertofx.com", "verto.co"];
@@ -217,11 +229,26 @@ async function main() {
         workspaceId,
         name: vendorData.name,
         email: vendorData.email.toLowerCase(),
+        accountName: vendorData.accountName,
+        bankName: vendorData.bankName,
+        accountNumber: vendorData.accountNumber,
         isActive: true,
       });
       console.log("Created vendor:", vendor.name);
     } else {
-      console.log("Vendor already exists:", vendor.name);
+      if (
+        !vendor.accountName?.trim() ||
+        !vendor.bankName?.trim() ||
+        !vendor.accountNumber?.trim()
+      ) {
+        vendor.accountName = vendorData.accountName;
+        vendor.bankName = vendorData.bankName;
+        vendor.accountNumber = vendorData.accountNumber;
+        await vendor.save();
+        console.log("Backfilled bank details for vendor:", vendor.name);
+      } else {
+        console.log("Vendor already exists:", vendor.name);
+      }
     }
 
     await seedVendorMenu(workspaceId, vendor._id);

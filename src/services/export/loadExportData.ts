@@ -11,7 +11,7 @@ import {
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
 import type { OrderDocument } from "../../models/Order.js";
 import { DAY_LABELS, type DayOfWeek } from "../../types/days.js";
-import { getUserDisplayName } from "../userDisplay.js";
+import { getOrderRecipientDisplay } from "../orderRecipient.js";
 
 export interface ExportLineRow {
   staffName: string;
@@ -83,7 +83,13 @@ export async function loadWeekExportData(
   };
 
   const orders = await Order.find(orderFilter);
-  const userIds = orders.map((o) => o.userId);
+  const userIds = [
+    ...new Set(
+      orders
+        .map((o) => o.userId?.toString())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
   const users = await User.find({ _id: { $in: userIds } });
   const userMap = new Map(users.map((u) => [u._id.toString(), u]));
 
@@ -100,14 +106,8 @@ export async function loadWeekExportData(
   const quantityMap = new Map<string, number>();
 
   for (const order of orders) {
-    const user = userMap.get(order.userId.toString());
-    const staffEmail = user?.email ?? "";
-    const staffName = getUserDisplayName({
-      firstName: user?.firstName,
-      lastName: user?.lastName,
-      name: user?.name,
-      email: staffEmail,
-    });
+    const user = order.userId ? userMap.get(order.userId.toString()) : null;
+    const { staffName, staffEmail } = getOrderRecipientDisplay(order, user ?? undefined);
 
     if (order.status === "SUBMITTED") {
       summaryRows.push({

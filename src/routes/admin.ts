@@ -14,8 +14,17 @@ import {
   setAllowedEmailActive,
 } from "../services/memberInvite.js";
 import { formatAllowedDomains } from "../services/emailDomain.js";
-import { createExcessPaymentDownloadUrl } from "../services/s3.js";
+import {
+  buildExcessPaymentS3Key,
+  createExcessPaymentDownloadUrl,
+  createExcessPaymentUploadUrl,
+  deleteExcessPaymentObject,
+  isExcessPaymentS3KeyForOrder,
+  validateExcessPaymentUploadRequest,
+  verifyExcessPaymentObject,
+} from "../services/s3.js";
 import { serializeOrder } from "../services/menuWeekService.js";
+import { assertOrderHasUploadableExcess } from "../services/staffOrderHistory.js";
 import { menuItemRouter, vendorMenuRouter } from "./admin/menu-items.js";
 import menuWeeksRouter from "./admin/menu-weeks.js";
 import reportsRouter from "./admin/reports.js";
@@ -32,6 +41,19 @@ const createAllowedEmailSchema = z.object({
 
 const patchAllowedEmailSchema = z.object({
   isActive: z.boolean(),
+});
+
+const excessProofUploadUrlSchema = z.object({
+  filename: z.string().trim().min(1),
+  mimeType: z.string().trim().min(1),
+  sizeBytes: z.number().int().positive(),
+});
+
+const excessProofConfirmSchema = z.object({
+  storageKey: z.string().trim().min(1),
+  filename: z.string().trim().min(1),
+  mimeType: z.string().trim().min(1),
+  sizeBytes: z.number().int().positive(),
 });
 
 function serializeAllowed(doc: {
@@ -230,6 +252,105 @@ router.get(
       filename: order.excessPaymentProofFilename ?? "payment-proof",
       mimeType: order.excessPaymentProofMimeType ?? null,
     });
+  }),
+);
+
+router.post(
+  "/orders/:orderId/excess-payment-proof/upload-url",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const orderId = String(req.params.orderId ?? "");
+    const body = excessProofUploadUrlSchema.parse(req.body);
+    const order = await Order.findOne({ _id: orderId, workspaceId });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    try {
+      assertOrderHasUploadableExcess(order);
+      validateExcessPaymentUploadRequest(body);
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : "Invalid upload request",
+      });
+      return;
+    }
+
+    const storageKey = buildExcessPaymentS3Key(workspaceId, orderId, body.filename);
+    const { uploadUrl, expiresInSeconds } = await createExcessPaymentUploadUrl({
+      storageKey,
+      mimeType: body.mimeType,
+      sizeBytes: body.sizeBytes,
+    });
+
+    res.json({ storageKey, uploadUrl, expiresInSeconds });
+  }),
+);
+
+router.post(
+  "/orders/:orderId/excess-payment-proof/confirm",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const orderId = String(req.params.orderId ?? "");
+    const body = excessProofConfirmSchema.parse(req.body);
+    const order = await Order.findOne({ _id: orderId, workspaceId });
+    if (!order) {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+
+    try {
+      assertOrderHasUploadableExcess(order);
+      validateExcessPaymentUploadRequest(body);
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : "Invalid upload request",
+      });
+      return;
+    }
+
+    if (!isExcessPaymentS3KeyForOrder(body.storageKey, workspaceId, orderId)) {
+      res.status(400).json({ error: "Invalid storage key" });
+      return;
+    }
+
+    try {
+      await verifyExcessPaymentObject(body.storageKey);
+    } catch {
+      res.status(400).json({
+        error: "Payment proof was not found in storage. Upload the file first.",
+      });
+      return;
+    }
+
+    if (
+      order.excessPaymentProofS3Key &&
+      order.excessPaymentProofS3Key !== body.storageKey
+    ) {
+      try {
+        await deleteExcessPaymentObject(order.excessPaymentProofS3Key);
+      } catch {
+        // Best effort cleanup of replaced proof.
+      }
+    }
+
+    const updated = await Order.findByIdAndUpdate(
+      order._id,
+      {
+        excessPaymentProofS3Key: body.storageKey,
+        excessPaymentProofFilename: body.filename,
+        excessPaymentProofMimeType: body.mimeType,
+        excessPaymentProofUploadedAt: new Date(),
+      },
+      { new: true },
+    );
+
+    res.json({ order: serializeOrder(updated!) });
   }),
 );
 

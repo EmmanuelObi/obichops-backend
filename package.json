@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "seed": "tsx scripts/seed.ts",
     "seed:abirikky": "tsx scripts/seed-abirikky-menu.ts",
+    "migrate:pack-items": "tsx scripts/migrate-pack-items.ts",
     "offline": "npm run build && serverless offline --stage staging",
     "deploy": "npm run build && serverless deploy --stage staging",
     "deploy:prod": "npm run build && serverless deploy --stage prod",

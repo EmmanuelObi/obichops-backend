@@ -8,7 +8,7 @@ import {
 } from "../middleware/auth.js";
 import { requireStaff } from "../middleware/requireStaff.js";
 import { requireWorkspaceContext } from "../middleware/workspace.js";
-import { MenuWeek, Order } from "../models/index.js";
+import { MenuWeek, Order, Vendor } from "../models/index.js";
 import { DAYS_OF_WEEK } from "../types/days.js";
 import {
   applyTotalsToLineItems,
@@ -32,6 +32,7 @@ import {
   verifyExcessPaymentObject,
 } from "../services/s3.js";
 import { isOrderingAllowed as checkOrderingAllowed } from "../services/menuWeekWindow.js";
+import { vendorHasPaymentDetails } from "../services/vendor.js";
 
 const router = Router();
 
@@ -50,8 +51,27 @@ const upsertOrderSchema = z.object({
 
 const submitOrderSchema = z.object({
   menuWeekId: z.string().min(1),
-  excessAcknowledged: z.boolean().optional(),
 });
+
+async function clearExcessPaymentProof(order: {
+  excessPaymentProofS3Key?: string | null;
+}): Promise<void> {
+  if (!order.excessPaymentProofS3Key) return;
+  try {
+    await deleteExcessPaymentObject(order.excessPaymentProofS3Key);
+  } catch {
+    // Best effort cleanup.
+  }
+}
+
+function excessProofClearFields() {
+  return {
+    excessPaymentProofS3Key: null,
+    excessPaymentProofFilename: null,
+    excessPaymentProofMimeType: null,
+    excessPaymentProofUploadedAt: null,
+  };
+}
 
 const excessProofUploadUrlSchema = z.object({
   filename: z.string().trim().min(1),
@@ -283,8 +303,10 @@ router.put(
       workspaceId,
     });
     if (existing?.status === "SUBMITTED") {
-      res.status(400).json({ error: "Order already submitted" });
-      return;
+      if (existing.excessCents > 0) {
+        res.status(400).json({ error: "Submitted orders with excess cannot be edited" });
+        return;
+      }
     }
 
     const validated = await validateAndPriceLineItems({
@@ -310,6 +332,15 @@ router.put(
       quantity: item.quantity,
     }));
 
+    const shouldClearProof =
+      existing &&
+      (totals.excessCents !== existing.excessCents || totals.excessCents <= 0) &&
+      Boolean(existing.excessPaymentProofS3Key);
+
+    if (shouldClearProof) {
+      await clearExcessPaymentProof(existing);
+    }
+
     const order = await Order.findOneAndUpdate(
       { userId: auth.sub, menuWeekId: menuWeek._id, workspaceId },
       {
@@ -324,6 +355,7 @@ router.put(
         excessAcknowledged: false,
         excessAcknowledgedAt: null,
         submittedAt: null,
+        ...(shouldClearProof ? excessProofClearFields() : {}),
       },
       { upsert: true, new: true, setDefaultsOnInsert: true },
     );
@@ -392,12 +424,28 @@ router.post(
       menuWeek.maxOrderAmountCents,
     );
 
-    if (totals.excessCents > 0 && !body.excessAcknowledged) {
-      res.status(400).json({
-        error: "Excess acknowledgment required",
-        excessCents: totals.excessCents,
+    if (totals.excessCents > 0) {
+      const vendor = await Vendor.findOne({
+        _id: menuWeek.activeVendorId,
+        workspaceId,
       });
-      return;
+      if (!vendor || !vendorHasPaymentDetails(vendor)) {
+        res.status(400).json({ error: "Vendor payment details are not configured" });
+        return;
+      }
+      if (!order.excessPaymentProofUploadedAt) {
+        res.status(400).json({
+          error: "Payment proof required before submitting an order with excess",
+          excessCents: totals.excessCents,
+        });
+        return;
+      }
+      if (order.excessCents !== totals.excessCents) {
+        res.status(400).json({
+          error: "Your order changed. Upload payment proof again before submitting.",
+        });
+        return;
+      }
     }
 
     order.lineItems = validated.map((item) => ({
@@ -411,12 +459,16 @@ router.post(
     order.excessCents = totals.excessCents;
     order.status = "SUBMITTED";
     order.submittedAt = new Date();
-    if (totals.excessCents > 0 && body.excessAcknowledged) {
+    if (totals.excessCents > 0) {
       order.excessAcknowledged = true;
       order.excessAcknowledgedAt = new Date();
     } else {
+      if (order.excessPaymentProofS3Key) {
+        await clearExcessPaymentProof(order);
+      }
       order.excessAcknowledged = false;
       order.excessAcknowledgedAt = undefined;
+      Object.assign(order, excessProofClearFields());
     }
 
     await order.save();

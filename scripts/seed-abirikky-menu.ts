@@ -107,10 +107,15 @@ async function upsertMenuItem(
   if (existing) {
     existing.priceCents = priceCents;
     existing.isAvailable = true;
+    if (entry.name.toLowerCase() === "pack") {
+      existing.itemKind = "PACK";
+      existing.packsRequired = 0;
+    }
     await existing.save();
     return "updated";
   }
 
+  const isPack = entry.name.toLowerCase() === "pack";
   await MenuItem.create({
     workspaceId,
     vendorId,
@@ -119,6 +124,8 @@ async function upsertMenuItem(
     description: "",
     priceCents,
     isAvailable: true,
+    itemKind: isPack ? "PACK" : "FOOD",
+    packsRequired: 0,
   });
   return "created";
 }

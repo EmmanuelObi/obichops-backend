@@ -11,6 +11,7 @@ import { requireWorkspaceContext } from "../../middleware/workspace.js";
 import { MenuItem } from "../../models/MenuItem.js";
 import { Vendor } from "../../models/Vendor.js";
 import { DAYS_OF_WEEK } from "../../types/days.js";
+import { MENU_ITEM_KINDS } from "../../types/menuItem.js";
 
 const vendorMenuRouter = Router({ mergeParams: true });
 const menuItemRouter = Router();
@@ -20,6 +21,8 @@ const createMenuItemSchema = z.object({
   name: z.string().trim().min(1),
   description: z.string().trim().optional(),
   priceCents: z.number().int().min(0),
+  itemKind: z.enum(MENU_ITEM_KINDS).optional(),
+  packsRequired: z.number().int().min(0).optional(),
   isAvailable: z.boolean().optional(),
 });
 
@@ -28,6 +31,8 @@ const updateMenuItemSchema = z.object({
   name: z.string().trim().min(1).optional(),
   description: z.string().trim().optional(),
   priceCents: z.number().int().min(0).optional(),
+  itemKind: z.enum(MENU_ITEM_KINDS).optional(),
+  packsRequired: z.number().int().min(0).optional(),
   isAvailable: z.boolean().optional(),
 });
 
@@ -39,9 +44,12 @@ function serializeMenuItem(doc: {
   name: string;
   description?: string | null;
   priceCents: number;
+  itemKind?: string;
+  packsRequired?: number | null;
   isAvailable: boolean;
   updatedAt?: Date;
 }) {
+  const itemKind = doc.itemKind ?? "FOOD";
   return {
     id: doc._id.toString(),
     workspaceId: doc.workspaceId.toString(),
@@ -50,6 +58,8 @@ function serializeMenuItem(doc: {
     name: doc.name,
     description: doc.description ?? "",
     priceCents: doc.priceCents,
+    itemKind,
+    packsRequired: itemKind === "FOOD" ? (doc.packsRequired ?? 0) : 0,
     isAvailable: doc.isAvailable,
     updatedAt: doc.updatedAt,
   };
@@ -111,6 +121,7 @@ vendorMenuRouter.post(
     }
 
     const body = createMenuItemSchema.parse(req.body);
+    const itemKind = body.itemKind ?? "FOOD";
     const menuItem = await MenuItem.create({
       workspaceId,
       vendorId,
@@ -118,6 +129,8 @@ vendorMenuRouter.post(
       name: body.name,
       description: body.description ?? "",
       priceCents: body.priceCents,
+      itemKind,
+      packsRequired: itemKind === "FOOD" ? (body.packsRequired ?? 0) : 0,
       isAvailable: body.isAvailable ?? true,
     });
 
@@ -140,6 +153,13 @@ menuItemRouter.patch(
     }
 
     const body = updateMenuItemSchema.parse(req.body);
+    const existing = await MenuItem.findOne({ _id: id, workspaceId });
+    if (!existing) {
+      res.status(404).json({ error: "Menu item not found" });
+      return;
+    }
+
+    const nextKind = body.itemKind ?? existing.itemKind ?? "FOOD";
     const menuItem = await MenuItem.findOneAndUpdate(
       { _id: id, workspaceId },
       {
@@ -147,6 +167,11 @@ menuItemRouter.patch(
         ...(body.name !== undefined ? { name: body.name } : {}),
         ...(body.description !== undefined ? { description: body.description } : {}),
         ...(body.priceCents !== undefined ? { priceCents: body.priceCents } : {}),
+        ...(body.itemKind !== undefined ? { itemKind: body.itemKind } : {}),
+        ...(body.packsRequired !== undefined && nextKind === "FOOD"
+          ? { packsRequired: body.packsRequired }
+          : {}),
+        ...(body.itemKind === "PACK" ? { packsRequired: 0 } : {}),
         ...(body.isAvailable !== undefined ? { isAvailable: body.isAvailable } : {}),
       },
       { new: true },

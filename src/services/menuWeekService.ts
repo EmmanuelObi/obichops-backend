@@ -4,6 +4,11 @@ import type { MenuWeekDocument } from "../models/MenuWeek.js";
 import type { DayOfWeek } from "../types/days.js";
 import { calculateOrderTotals, countDistinctOrderDays, type LineItemInput } from "./orderTotals.js";
 import {
+  computePackLineItems,
+  type FoodLineForPacks,
+  type PackMenuItemForDay,
+} from "./packLines.js";
+import {
   DEFAULT_TIMEZONE,
   getWindowUiStatus,
   isOrderingAllowed,
@@ -83,6 +88,7 @@ export async function getFilteredMenuForWeek(
     vendorId,
     dayOfWeek: { $in: orderableDays },
     isAvailable: true,
+    itemKind: { $ne: "PACK" },
   }).sort({ dayOfWeek: 1, name: 1 });
 
   return items.map((item) => ({
@@ -92,7 +98,29 @@ export async function getFilteredMenuForWeek(
     name: item.name,
     description: item.description ?? "",
     priceCents: item.priceCents,
+    itemKind: item.itemKind ?? "FOOD",
+    packsRequired: item.packsRequired ?? 0,
     isAvailable: item.isAvailable,
+  }));
+}
+
+export async function getPackMenuForWeek(
+  workspaceId: string,
+  vendorId: string,
+  orderableDays: string[],
+) {
+  const items = await MenuItem.find({
+    workspaceId,
+    vendorId,
+    dayOfWeek: { $in: orderableDays },
+    itemKind: "PACK",
+    isAvailable: true,
+  }).sort({ dayOfWeek: 1 });
+
+  return items.map((item) => ({
+    id: item._id.toString(),
+    dayOfWeek: item.dayOfWeek,
+    priceCents: item.priceCents,
   }));
 }
 
@@ -120,6 +148,7 @@ export async function validateAndPriceLineItems(input: {
 
   const orderableSet = new Set(input.menuWeek.orderableDays);
   const validated: ValidatedLineItem[] = [];
+  const foodForPacks: FoodLineForPacks[] = [];
 
   for (const line of input.lineItems) {
     if (!orderableSet.has(line.dayOfWeek)) {
@@ -143,11 +172,21 @@ export async function validateAndPriceLineItems(input: {
       throw new Error(`Menu item ${line.menuItemId} is not available`);
     }
 
+    const itemKind = menuItem.itemKind ?? "FOOD";
+    if (itemKind === "PACK") {
+      continue;
+    }
+
     validated.push({
       menuItemId: menuItem._id.toString(),
       dayOfWeek: line.dayOfWeek,
       quantity: line.quantity,
       unitPriceCents: menuItem.priceCents,
+    });
+    foodForPacks.push({
+      dayOfWeek: line.dayOfWeek,
+      quantity: line.quantity,
+      packsRequired: menuItem.packsRequired ?? 0,
     });
   }
 
@@ -159,12 +198,43 @@ export async function validateAndPriceLineItems(input: {
     );
   }
 
-  return validated;
+  if (foodForPacks.length === 0) {
+    return validated;
+  }
+
+  const packItems = await MenuItem.find({
+    workspaceId: input.workspaceId,
+    vendorId: input.menuWeek.activeVendorId,
+    dayOfWeek: { $in: input.menuWeek.orderableDays },
+    itemKind: "PACK",
+    isAvailable: true,
+  });
+
+  const packMenuItemsByDay = new Map(
+    packItems.map(
+      (item) =>
+        [
+          item.dayOfWeek as DayOfWeek,
+          {
+            menuItemId: item._id.toString(),
+            dayOfWeek: item.dayOfWeek as DayOfWeek,
+            priceCents: item.priceCents,
+          } satisfies PackMenuItemForDay,
+        ] as const,
+    ),
+  );
+
+  const packLines = computePackLineItems({ foodLineItems: foodForPacks, packMenuItemsByDay });
+
+  return [...validated, ...packLines];
 }
 
 export function serializeOrder(order: {
   _id: mongoose.Types.ObjectId;
   menuWeekId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId | null;
+  placedForName?: string | null;
+  placedByUserId?: mongoose.Types.ObjectId | null;
   status: string;
   lineItems: Array<{
     menuItemId: mongoose.Types.ObjectId;
@@ -187,6 +257,9 @@ export function serializeOrder(order: {
   return {
     id: order._id.toString(),
     menuWeekId: order.menuWeekId.toString(),
+    userId: order.userId?.toString() ?? null,
+    placedForName: order.placedForName?.trim() ?? null,
+    placedByUserId: order.placedByUserId?.toString() ?? null,
     status: order.status,
     lineItems: order.lineItems.map((item) => ({
       menuItemId: item.menuItemId.toString(),

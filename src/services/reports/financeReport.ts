@@ -4,7 +4,7 @@ import { MenuWeek, Order, User, Vendor, Workspace } from "../../models/index.js"
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
 import type { OrderDocument } from "../../models/Order.js";
 import { formatNaira, weekDateRangeLabel } from "../export/loadExportData.js";
-import { getUserDisplayName } from "../userDisplay.js";
+import { getOrderRecipientDisplay, getOrderRecipientKey } from "../orderRecipient.js";
 
 export type FinanceReportGranularity = "week" | "month";
 
@@ -99,7 +99,7 @@ function emptyTotals(): OrderTotals {
 
 function accumulateOrder(totals: OrderTotals, order: OrderDocument): void {
   totals.orderCount += 1;
-  totals.staffIds.add(order.userId.toString());
+  totals.staffIds.add(getOrderRecipientKey(order));
   totals.totalCents += order.totalCents;
   totals.companyCoveredCents += order.companyCoveredCents;
   totals.excessCents += order.excessCents;
@@ -164,7 +164,7 @@ function summaryFromWeekAggregates(
 
   for (const aggregate of aggregates) {
     for (const order of aggregate.orders) {
-      staffIds.add(order.userId.toString());
+      staffIds.add(getOrderRecipientKey(order));
       submittedOrderCount += 1;
       totalCents += order.totalCents;
       companyCoveredCents += order.companyCoveredCents;
@@ -198,17 +198,14 @@ function buildStaffRows(
 
   for (const aggregate of aggregates) {
     for (const order of aggregate.orders) {
-      const userId = order.userId.toString();
-      const user = userMap.get(userId);
-      const staffEmail = user?.email ?? "";
-      const staffName = getUserDisplayName({
-        firstName: user?.firstName,
-        lastName: user?.lastName,
-        name: user?.name,
-        email: staffEmail,
-      });
+      const recipientKey = getOrderRecipientKey(order);
+      const user = order.userId ? userMap.get(order.userId.toString()) : null;
+      const { staffName, staffEmail } = getOrderRecipientDisplay(
+        order,
+        user ?? undefined,
+      );
 
-      const existing = byUser.get(userId) ?? {
+      const existing = byUser.get(recipientKey) ?? {
         staffName,
         staffEmail,
         orderCount: 0,
@@ -230,7 +227,7 @@ function buildStaffRows(
         existing.excessOutstandingCents += order.excessCents;
       }
 
-      byUser.set(userId, existing);
+      byUser.set(recipientKey, existing);
     }
   }
 
@@ -329,7 +326,7 @@ function groupIntoMonthlyBuckets(
     const staffSet = ordersByMonth.get(key) ?? new Set<string>();
 
     for (const order of aggregate.orders) {
-      staffSet.add(order.userId.toString());
+      staffSet.add(getOrderRecipientKey(order));
     }
     ordersByMonth.set(key, staffSet);
   }
@@ -389,7 +386,13 @@ export async function loadFinanceReport(
     ordersByWeek.set(weekId, list);
   }
 
-  const userIds = [...new Set(orders.map((o) => o.userId.toString()))];
+  const userIds = [
+    ...new Set(
+      orders
+        .map((o) => o.userId?.toString())
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
   const users = await User.find({ _id: { $in: userIds } });
   const userMap = new Map(
     users.map((u) => [
