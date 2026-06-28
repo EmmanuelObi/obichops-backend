@@ -8,6 +8,7 @@ export function signAccessToken(params: {
   workspaceId: string | null;
   role: Role;
   email: string;
+  needsProfileCompletion?: boolean;
 }): string {
   const { JWT_SECRET, JWT_EXPIRES_IN } = getEnv();
   const payload: JwtPayload = {
@@ -15,6 +16,7 @@ export function signAccessToken(params: {
     workspaceId: params.workspaceId,
     role: params.role,
     email: params.email,
+    needsProfileCompletion: params.needsProfileCompletion ?? false,
   };
   const options: SignOptions = { expiresIn: JWT_EXPIRES_IN as SignOptions["expiresIn"] };
   return jwt.sign(payload, JWT_SECRET, options);
@@ -40,5 +42,6 @@ export function verifyAccessToken(token: string): JwtPayload {
     workspaceId: p.workspaceId as string | null,
     role: p.role as JwtPayload["role"],
     email: p.email,
+    needsProfileCompletion: p.needsProfileCompletion === true,
   };
 }
