@@ -45,7 +45,7 @@ const resetSchema = z.object({
 });
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1),
+  currentPassword: z.string().min(1).optional(),
   newPassword: z.string().min(8),
   firstName: z.string().trim().min(1).optional(),
   lastName: z.string().trim().min(1).optional(),
@@ -309,16 +309,23 @@ router.post(
       return;
     }
 
-    const valid = await verifyPassword(body.currentPassword, user.passwordHash);
-    if (!valid) {
-      res.status(401).json({ error: "Current password is incorrect" });
-      return;
-    }
-
     const needsProfile = userNeedsProfileCompletion(user);
-    if (needsProfile && (!body.firstName || !body.lastName)) {
-      res.status(400).json({ error: "First name and last name are required" });
-      return;
+
+    if (needsProfile) {
+      if (!body.firstName || !body.lastName) {
+        res.status(400).json({ error: "First name and last name are required" });
+        return;
+      }
+    } else {
+      if (!body.currentPassword) {
+        res.status(400).json({ error: "Current password is required" });
+        return;
+      }
+      const valid = await verifyPassword(body.currentPassword, user.passwordHash);
+      if (!valid) {
+        res.status(401).json({ error: "Current password is incorrect" });
+        return;
+      }
     }
 
     user.passwordHash = await hashPassword(body.newPassword);
