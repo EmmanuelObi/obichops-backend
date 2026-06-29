@@ -24,6 +24,7 @@ import {
   verifyExcessPaymentObject,
 } from "../services/s3.js";
 import { serializeOrder } from "../services/menuWeekService.js";
+import { serializeTeamMember } from "../services/teamMember.js";
 import { assertOrderHasUploadableExcess } from "../services/staffOrderHistory.js";
 import { menuItemRouter, vendorMenuRouter } from "./admin/menu-items.js";
 import menuWeeksRouter from "./admin/menu-weeks.js";
@@ -56,22 +57,15 @@ const excessProofConfirmSchema = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
-function serializeAllowed(doc: {
-  _id: mongoose.Types.ObjectId;
-  workspaceId: mongoose.Types.ObjectId;
-  email: string;
-  role: string;
-  isActive?: boolean;
-  createdAt?: Date;
-}) {
-  return {
-    id: doc._id.toString(),
-    workspaceId: doc.workspaceId.toString(),
-    email: doc.email,
-    role: doc.role,
-    isActive: doc.isActive ?? true,
-    createdAt: doc.createdAt,
-  };
+async function loadTeamMembers(workspaceId: string) {
+  const items = await AllowedEmail.find({ workspaceId }).sort({ createdAt: -1 });
+  const emails = items.map((item) => item.email);
+  const users = await User.find({ workspaceId, email: { $in: emails } });
+  const userByEmail = new Map(users.map((user) => [user.email, user]));
+
+  return items.map((item) =>
+    serializeTeamMember(item, userByEmail.get(item.email) ?? null),
+  );
 }
 
 router.get(
@@ -106,10 +100,7 @@ router.get(
     const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
     if (!workspaceId) return;
 
-    const items = await AllowedEmail.find({ workspaceId }).sort({
-      createdAt: -1,
-    });
-    res.json({ allowedEmails: items.map(serializeAllowed) });
+    res.json({ allowedEmails: await loadTeamMembers(workspaceId) });
   }),
 );
 
@@ -132,8 +123,9 @@ router.post(
         res.status(500).json({ error: "Failed to load invited member" });
         return;
       }
+      const user = await User.findOne({ workspaceId, email: allowed.email });
       res.status(201).json({
-        allowedEmail: serializeAllowed(allowed),
+        allowedEmail: serializeTeamMember(allowed, user),
         message: "Invitation sent with a temporary password",
       });
     } catch (err) {
@@ -192,7 +184,8 @@ router.patch(
       res.status(404).json({ error: "Not found" });
       return;
     }
-    res.json({ allowedEmail: serializeAllowed(updated) });
+    const user = await User.findOne({ workspaceId, email: updated.email });
+    res.json({ allowedEmail: serializeTeamMember(updated, user) });
   }),
 );
 
