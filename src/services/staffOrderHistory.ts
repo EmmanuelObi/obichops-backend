@@ -3,6 +3,14 @@ import { MenuItem, MenuWeek, Order, Vendor } from "../models/index.js";
 import type { OrderDocument } from "../models/Order.js";
 import { getWorkspaceTimezone, serializeOrder } from "./menuWeekService.js";
 import { getExcessPaymentStatus, isExcessOutstanding } from "../types/excessPayment.js";
+import { getReviewsForUserWeeks } from "./vendorReview.js";
+
+export interface StaffOrderHistoryReview {
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface StaffOrderHistoryEntry {
   order: ReturnType<typeof serializeOrder> & {
@@ -27,6 +35,8 @@ export interface StaffOrderHistoryEntry {
     unitPriceCentsSnapshot: number | null;
     name: string;
   }>;
+  canReview: boolean;
+  review: StaffOrderHistoryReview | null;
 }
 
 function serializeHistoryOrder(order: OrderDocument) {
@@ -88,6 +98,8 @@ export async function listStaffOrderHistory(
     menuItems.map((item) => [item._id.toString(), item]),
   );
 
+  const reviewMap = await getReviewsForUserWeeks(userId, weekIds);
+
   let outstandingExcessCents = 0;
   let outstandingOrderCount = 0;
 
@@ -128,6 +140,10 @@ export async function listStaffOrderHistory(
         name:
           menuItemMap.get(line.menuItemId.toString())?.name ?? "Unknown item",
       })),
+      canReview: week?.status === "CLOSED",
+      review: week
+        ? reviewMap.get(week._id.toString()) ?? null
+        : null,
     };
   });
 

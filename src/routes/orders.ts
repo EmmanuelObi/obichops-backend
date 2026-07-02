@@ -33,6 +33,10 @@ import {
 } from "../services/s3.js";
 import { isOrderingAllowed as checkOrderingAllowed } from "../services/menuWeekWindow.js";
 import { vendorHasPaymentDetails } from "../services/vendor.js";
+import {
+  ReviewNotAllowedError,
+  upsertReview,
+} from "../services/vendorReview.js";
 
 const router = Router();
 
@@ -86,6 +90,11 @@ const excessProofConfirmSchema = z.object({
   sizeBytes: z.number().int().positive(),
 });
 
+const vendorReviewSchema = z.object({
+  rating: z.number().int().min(1).max(5),
+  comment: z.string().trim().max(500).optional(),
+});
+
 async function getMenuWeekForOrder(
   workspaceId: string,
   menuWeekId: string,
@@ -133,6 +142,35 @@ router.get(
 
     const history = await listStaffOrderHistory(workspaceId, auth.sub);
     res.json(history);
+  }),
+);
+
+router.put(
+  "/me/history/:menuWeekId/review",
+  asyncHandler(async (req, res) => {
+    const auth = (req as AuthenticatedRequest).auth!;
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const menuWeekId = String(req.params.menuWeekId ?? "");
+    const body = vendorReviewSchema.parse(req.body);
+
+    try {
+      const review = await upsertReview({
+        workspaceId,
+        userId: auth.sub,
+        menuWeekId,
+        rating: body.rating,
+        comment: body.comment,
+      });
+      res.json({ review });
+    } catch (err) {
+      if (err instanceof ReviewNotAllowedError) {
+        res.status(400).json({ error: err.message });
+        return;
+      }
+      throw err;
+    }
   }),
 );
 

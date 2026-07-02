@@ -15,3 +15,7 @@ export {
   type VendorDispatchDocument,
   type DispatchFormat,
 } from "./VendorDispatch.js";
+export {
+  VendorReview,
+  type VendorReviewDocument,
+} from "./VendorReview.js";

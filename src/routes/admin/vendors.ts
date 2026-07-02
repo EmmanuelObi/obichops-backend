@@ -10,6 +10,10 @@ import {
 import { requireWorkspaceContext } from "../../middleware/workspace.js";
 import { Vendor } from "../../models/Vendor.js";
 import { serializeVendorPaymentFields } from "../../services/vendor.js";
+import {
+  getVendorRatingSummaries,
+  listReviewsByVendor,
+} from "../../services/vendorReview.js";
 
 const router = Router();
 
@@ -76,7 +80,17 @@ router.get(
     if (!workspaceId) return;
 
     const vendors = await Vendor.find({ workspaceId }).sort({ name: 1 });
-    res.json({ vendors: vendors.map(serializeVendor) });
+    const ratingSummaries = await getVendorRatingSummaries(workspaceId);
+    res.json({
+      vendors: vendors.map((vendor) => {
+        const summary = ratingSummaries.get(vendor._id.toString());
+        return {
+          ...serializeVendor(vendor),
+          averageRating: summary?.averageRating ?? null,
+          reviewCount: summary?.reviewCount ?? 0,
+        };
+      }),
+    });
   }),
 );
 
@@ -98,6 +112,29 @@ router.post(
     });
 
     res.status(201).json({ vendor: serializeVendor(vendor) });
+  }),
+);
+
+router.get(
+  "/:id/reviews",
+  asyncHandler(async (req, res) => {
+    const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
+    if (!workspaceId) return;
+
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+
+    const vendor = await Vendor.findOne({ _id: id, workspaceId });
+    if (!vendor) {
+      res.status(404).json({ error: "Vendor not found" });
+      return;
+    }
+
+    const reviews = await listReviewsByVendor(workspaceId, id);
+    res.json({ reviews });
   }),
 );
 
