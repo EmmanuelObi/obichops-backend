@@ -35,6 +35,7 @@ import {
   verifyExcessPaymentObject,
 } from "../services/s3.js";
 import { isOrderingAllowed as checkOrderingAllowed } from "../services/menuWeekWindow.js";
+import { daysFromLineItems, sanitizeDayNotes } from "../services/orderNotes.js";
 import { vendorHasPaymentDetails } from "../services/vendor.js";
 import {
   ReviewNotAllowedError,
@@ -48,12 +49,18 @@ router.use(requireAuth, requireActiveWorkspace, requireStaff);
 const lineItemSchema = z.object({
   menuItemId: z.string().min(1),
   dayOfWeek: z.enum(DAYS_OF_WEEK),
-  quantity: z.number().int().min(1),
+  quantity: z.number().multipleOf(0.5).min(0.5),
+});
+
+const dayNoteSchema = z.object({
+  dayOfWeek: z.enum(DAYS_OF_WEEK),
+  note: z.string().max(300),
 });
 
 const upsertOrderSchema = z.object({
   menuWeekId: z.string().min(1),
   lineItems: z.array(lineItemSchema),
+  dayNotes: z.array(dayNoteSchema).optional(),
 });
 
 const submitOrderSchema = z.object({
@@ -373,6 +380,11 @@ router.put(
       quantity: item.quantity,
     }));
 
+    const dayNotes = sanitizeDayNotes(
+      body.dayNotes,
+      daysFromLineItems(lineItemsPayload),
+    );
+
     const shouldClearProof =
       existing &&
       (totals.excessCents !== existing.excessCents || totals.excessCents <= 0) &&
@@ -390,6 +402,7 @@ router.put(
         menuWeekId: menuWeek._id,
         status: "DRAFT",
         lineItems: lineItemsPayload,
+        dayNotes,
         totalCents: totals.totalCents,
         companyCoveredCents: totals.companyCoveredCents,
         excessCents: totals.excessCents,

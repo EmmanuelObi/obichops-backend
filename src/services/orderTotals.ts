@@ -38,7 +38,7 @@ export function calculateOrderTotals(
   let totalCents = 0;
 
   for (const item of activeItems) {
-    const lineTotal = item.unitPriceCents * item.quantity;
+    const lineTotal = Math.round(item.unitPriceCents * item.quantity);
     totalCents += lineTotal;
     if (!dayBreakdown[item.dayOfWeek]) {
       dayBreakdown[item.dayOfWeek] = { totalCents: 0 };

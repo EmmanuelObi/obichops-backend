@@ -35,6 +35,19 @@ export function buildCsvExport(data: WeekExportData, includeExcessSummary = true
     stringify([lineHeader, ...lineRecords], { quoted: true }),
   );
 
+  if (data.noteRows.length > 0) {
+    sections.push("");
+    const noteHeader = ["Day", "Staff Name", "Note for kitchen"];
+    const noteRecords = data.noteRows.map((row) => [
+      row.day,
+      row.staffName,
+      row.note,
+    ]);
+    sections.push(
+      stringify([noteHeader, ...noteRecords], { quoted: true }),
+    );
+  }
+
   if (includeExcessSummary) {
     sections.push("");
     const summaryHeader = [

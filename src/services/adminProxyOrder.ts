@@ -9,6 +9,11 @@ import {
   validateAndPriceLineItems,
 } from "./menuWeekService.js";
 import { isOrderingAllowed as checkOrderingAllowed } from "./menuWeekWindow.js";
+import {
+  daysFromLineItems,
+  sanitizeDayNotes,
+  type DayNoteInput,
+} from "./orderNotes.js";
 import { normalizePlacedForNameKey } from "./orderRecipient.js";
 import { vendorHasPaymentDetails } from "./vendor.js";
 
@@ -135,6 +140,7 @@ export async function upsertProxyOrder(input: {
   adminUserId: string;
   recipient: ResolvedProxyRecipient;
   lineItems: Array<{ menuItemId: string; dayOfWeek: DayOfWeek; quantity: number }>;
+  dayNotes?: DayNoteInput[];
 }) {
   assertOrderingWindowOpen(input.menuWeek);
 
@@ -165,6 +171,11 @@ export async function upsertProxyOrder(input: {
     quantity: item.quantity,
   }));
 
+  const dayNotes = sanitizeDayNotes(
+    input.dayNotes,
+    daysFromLineItems(lineItemsPayload),
+  );
+
   const shouldClearProof =
     existing &&
     (totals.excessCents !== existing.excessCents || totals.excessCents <= 0) &&
@@ -191,6 +202,7 @@ export async function upsertProxyOrder(input: {
       placedByUserId: new mongoose.Types.ObjectId(input.adminUserId),
       status: "DRAFT",
       lineItems: lineItemsPayload,
+      dayNotes,
       totalCents: totals.totalCents,
       companyCoveredCents: totals.companyCoveredCents,
       excessCents: totals.excessCents,

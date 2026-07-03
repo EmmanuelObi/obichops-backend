@@ -33,6 +33,13 @@ export interface ExportSummaryRow {
   excessAcknowledged: boolean;
 }
 
+export interface ExportNoteRow {
+  staffName: string;
+  staffEmail: string;
+  day: string;
+  note: string;
+}
+
 export interface WeekExportData {
   workspaceName: string;
   week: MenuWeekDocument;
@@ -41,6 +48,7 @@ export interface WeekExportData {
   timezone: string;
   lineRows: ExportLineRow[];
   summaryRows: ExportSummaryRow[];
+  noteRows: ExportNoteRow[];
   itemQuantityTotals: Array<{ day: string; item: string; quantity: number }>;
   excessRows: ExportSummaryRow[];
 }
@@ -103,6 +111,7 @@ export async function loadWeekExportData(
 
   const lineRows: ExportLineRow[] = [];
   const summaryRows: ExportSummaryRow[] = [];
+  const noteRows: ExportNoteRow[] = [];
   const quantityMap = new Map<string, number>();
 
   for (const order of orders) {
@@ -118,6 +127,18 @@ export async function loadWeekExportData(
         excessCents: order.excessCents,
         excessAcknowledged: order.excessAcknowledged,
       });
+
+      for (const dayNote of order.dayNotes ?? []) {
+        if (!orderableSet.has(dayNote.dayOfWeek)) continue;
+        const note = dayNote.note?.trim();
+        if (!note) continue;
+        noteRows.push({
+          staffName,
+          staffEmail,
+          day: DAY_LABELS[dayNote.dayOfWeek as DayOfWeek] ?? dayNote.dayOfWeek,
+          note,
+        });
+      }
     }
 
     for (const line of order.lineItems) {
@@ -138,7 +159,7 @@ export async function loadWeekExportData(
         item: itemName,
         quantity: line.quantity,
         unitPriceCents: unitPrice,
-        lineTotalCents: unitPrice * line.quantity,
+        lineTotalCents: Math.round(unitPrice * line.quantity),
         vendorName: vendor.name,
       });
 
@@ -164,6 +185,7 @@ export async function loadWeekExportData(
     timezone,
     lineRows,
     summaryRows,
+    noteRows,
     itemQuantityTotals,
     excessRows,
   };

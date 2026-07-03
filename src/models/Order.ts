@@ -12,8 +12,16 @@ const lineItemSchema = new Schema(
       required: true,
     },
     dayOfWeek: { type: String, enum: DAYS_OF_WEEK, required: true },
-    quantity: { type: Number, required: true, min: 1 },
+    quantity: { type: Number, required: true, min: 0.5 },
     unitPriceCentsSnapshot: { type: Number, min: 0 },
+  },
+  { _id: false },
+);
+
+const dayNoteSchema = new Schema(
+  {
+    dayOfWeek: { type: String, enum: DAYS_OF_WEEK, required: true },
+    note: { type: String, trim: true, required: true },
   },
   { _id: false },
 );
@@ -48,6 +56,7 @@ const orderSchema = new Schema(
       default: "DRAFT",
     },
     lineItems: { type: [lineItemSchema], default: [] },
+    dayNotes: { type: [dayNoteSchema], default: [] },
     totalCents: { type: Number, default: 0, min: 0 },
     companyCoveredCents: { type: Number, default: 0, min: 0 },
     excessCents: { type: Number, default: 0, min: 0 },

@@ -157,8 +157,8 @@ export async function validateAndPriceLineItems(input: {
     if (!mongoose.isValidObjectId(line.menuItemId)) {
       throw new Error("Invalid menu item id");
     }
-    if (line.quantity < 1) {
-      throw new Error("Quantity must be at least 1");
+    if (line.quantity < 0.5 || !Number.isInteger(line.quantity * 2)) {
+      throw new Error("Quantity must be at least 0.5, in steps of 0.5");
     }
 
     const menuItem = await MenuItem.findOne({
@@ -242,6 +242,7 @@ export function serializeOrder(order: {
     quantity: number;
     unitPriceCentsSnapshot?: number | null;
   }>;
+  dayNotes?: Array<{ dayOfWeek: string; note: string }> | null;
   totalCents: number;
   companyCoveredCents: number;
   excessCents: number;
@@ -267,6 +268,12 @@ export function serializeOrder(order: {
       quantity: item.quantity,
       unitPriceCentsSnapshot: item.unitPriceCentsSnapshot ?? null,
     })),
+    dayNotes: (order.dayNotes ?? [])
+      .filter((entry) => entry?.note?.trim())
+      .map((entry) => ({
+        dayOfWeek: entry.dayOfWeek,
+        note: entry.note.trim(),
+      })),
     totalCents: order.totalCents,
     companyCoveredCents: order.companyCoveredCents,
     excessCents: order.excessCents,

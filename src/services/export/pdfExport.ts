@@ -51,6 +51,19 @@ function staffDayTotal(rows: ExportLineRow[]): number {
   return rows.reduce((sum, row) => sum + row.lineTotalCents, 0);
 }
 
+/** Look up notes keyed by day label then staff key (email || name). */
+function buildNoteLookup(
+  data: WeekExportData,
+): Map<string, Map<string, string>> {
+  const lookup = new Map<string, Map<string, string>>();
+  for (const row of data.noteRows) {
+    if (!lookup.has(row.day)) lookup.set(row.day, new Map());
+    const staffKey = row.staffEmail || row.staffName;
+    lookup.get(row.day)!.set(staffKey, row.note);
+  }
+  return lookup;
+}
+
 export async function buildPdfExport(
   data: WeekExportData,
   options?: { includeExcessSummary?: boolean },
@@ -67,6 +80,7 @@ export async function buildPdfExport(
   doc.moveDown();
 
   const grouped = groupByDayAndStaff(data.lineRows);
+  const noteLookup = buildNoteLookup(data);
   const sortedDays = [...grouped.keys()]
     .filter((day) => orderableLabels.has(day))
     .sort((a, b) => daySortIndex(data, a) - daySortIndex(data, b));
@@ -89,7 +103,7 @@ export async function buildPdfExport(
       }),
     );
 
-    for (const [, rows] of sortedStaff) {
+    for (const [staffKey, rows] of sortedStaff) {
       const displayName = rows[0]?.staffName ?? "Unknown";
       doc.fontSize(11).fillColor("#222").text(displayName);
 
@@ -101,6 +115,14 @@ export async function buildPdfExport(
           .text(
             `  - ${row.item} x ${row.quantity} @ ${formatNairaPdf(row.unitPriceCents)} = ${formatNairaPdf(row.lineTotalCents)}`,
           );
+      }
+
+      const note = noteLookup.get(day)?.get(staffKey);
+      if (note) {
+        doc
+          .fontSize(10)
+          .fillColor("#b45309")
+          .text(`  Note: ${note}`, { indent: 8 });
       }
 
       doc

@@ -469,7 +469,7 @@ router.get(
 const proxyLineItemSchema = z.object({
   menuItemId: z.string().min(1),
   dayOfWeek: z.enum(DAYS_OF_WEEK),
-  quantity: z.number().int().min(1),
+  quantity: z.number().multipleOf(0.5).min(0.5),
 });
 
 const proxyRecipientBodySchema = z.discriminatedUnion("recipientType", [
@@ -483,9 +483,15 @@ const proxyRecipientBodySchema = z.discriminatedUnion("recipientType", [
   }),
 ]);
 
+const proxyDayNoteSchema = z.object({
+  dayOfWeek: z.enum(DAYS_OF_WEEK),
+  note: z.string().max(300),
+});
+
 const upsertProxyOrderSchema = z.object({
   recipient: proxyRecipientBodySchema,
   lineItems: z.array(proxyLineItemSchema),
+  dayNotes: z.array(proxyDayNoteSchema).optional(),
 });
 
 const submitProxyOrderSchema = z.object({
@@ -670,6 +676,7 @@ router.put(
         adminUserId: auth.sub,
         recipient,
         lineItems: body.lineItems,
+        dayNotes: body.dayNotes,
       });
       res.json({ order });
     } catch (err) {
