@@ -9,7 +9,11 @@ import {
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
 import { AllowedEmail, PasswordResetToken, User, Workspace } from "../models/index.js";
-import { resolveWorkspaceForAuth, workspaceIdForUserQuery } from "../services/workspace.js";
+import {
+  isWorkspaceActive,
+  resolveWorkspaceForAuth,
+  workspaceIdForUserQuery,
+} from "../services/workspace.js";
 import {
   generateResetToken,
   hashPassword,
@@ -114,6 +118,11 @@ router.post(
 
     const workspaceId = resolution.workspaceId;
 
+    if (!(await isWorkspaceActive(workspaceId))) {
+      res.status(403).json({ error: "This workspace has been suspended" });
+      return;
+    }
+
     const allowed = await AllowedEmail.findOne({
       workspaceId,
       email: body.email.toLowerCase(),
@@ -195,6 +204,11 @@ router.post(
 
     if (!user.isActive) {
       res.status(403).json({ error: "Account is deactivated" });
+      return;
+    }
+
+    if (user.workspaceId && !(await isWorkspaceActive(user.workspaceId.toString()))) {
+      res.status(403).json({ error: "This workspace has been suspended" });
       return;
     }
 

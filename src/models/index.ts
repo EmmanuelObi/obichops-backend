@@ -19,3 +19,9 @@ export {
   VendorReview,
   type VendorReviewDocument,
 } from "./VendorReview.js";
+export {
+  PlatformAuditLog,
+  type PlatformAuditLogDocument,
+  type PlatformAuditAction,
+  PLATFORM_AUDIT_ACTIONS,
+} from "./PlatformAuditLog.js";

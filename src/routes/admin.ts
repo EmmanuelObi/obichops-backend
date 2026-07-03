@@ -7,7 +7,10 @@ import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
-import { requireWorkspaceContext } from "../middleware/workspace.js";
+import {
+  requireActiveWorkspace,
+  requireWorkspaceContext,
+} from "../middleware/workspace.js";
 import { AllowedEmail, Order, User, Workspace } from "../models/index.js";
 import {
   inviteWorkspaceMember,
@@ -33,7 +36,7 @@ import vendorsRouter from "./admin/vendors.js";
 
 const router = Router();
 
-router.use(requireAuth, requireAdmin);
+router.use(requireAuth, requireActiveWorkspace, requireAdmin);
 
 const createAllowedEmailSchema = z.object({
   email: z.string().email(),

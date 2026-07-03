@@ -4,7 +4,10 @@ import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
-import { requireWorkspaceContext } from "../middleware/workspace.js";
+import {
+  requireActiveWorkspace,
+  requireWorkspaceContext,
+} from "../middleware/workspace.js";
 import { Vendor } from "../models/index.js";
 import {
   findCurrentMenuWeek,
@@ -17,7 +20,7 @@ import { serializeVendorPaymentFields } from "../services/vendor.js";
 
 const router = Router();
 
-router.use(requireAuth);
+router.use(requireAuth, requireActiveWorkspace);
 
 router.get(
   "/current",

@@ -7,7 +7,10 @@ import {
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
 import { requireStaff } from "../middleware/requireStaff.js";
-import { requireWorkspaceContext } from "../middleware/workspace.js";
+import {
+  requireActiveWorkspace,
+  requireWorkspaceContext,
+} from "../middleware/workspace.js";
 import { MenuWeek, Order, Vendor } from "../models/index.js";
 import { DAYS_OF_WEEK } from "../types/days.js";
 import {
@@ -40,7 +43,7 @@ import {
 
 const router = Router();
 
-router.use(requireAuth, requireStaff);
+router.use(requireAuth, requireActiveWorkspace, requireStaff);
 
 const lineItemSchema = z.object({
   menuItemId: z.string().min(1),

@@ -79,3 +79,8 @@ export function workspaceIdForUserQuery(
   }
   return undefined;
 }
+
+export async function isWorkspaceActive(workspaceId: string): Promise<boolean> {
+  const workspace = await Workspace.findById(workspaceId).select("isActive");
+  return workspace?.isActive ?? false;
+}

@@ -17,6 +17,7 @@ export async function inviteWorkspaceMember(input: {
   workspaceId: string;
   email: string;
   role: "STAFF" | "ADMIN";
+  skipDomainCheck?: boolean;
 }): Promise<InviteMemberResult> {
   const email = input.email.toLowerCase();
   const workspace = await Workspace.findById(input.workspaceId);
@@ -25,6 +26,7 @@ export async function inviteWorkspaceMember(input: {
   }
 
   if (
+    !input.skipDomainCheck &&
     !isEmailDomainAllowed(
       email,
       workspace.settings?.allowedEmailDomains as string[] | undefined,
