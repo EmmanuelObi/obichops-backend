@@ -5,6 +5,8 @@ import { weekDateRangeLabel } from "../export/loadExportData.js";
 import {
   getStaffEmails,
   logReminder,
+  orderingCtaHtml,
+  orderingCtaText,
   sendReminderEmails,
 } from "./reminderUtils.js";
 
@@ -43,8 +45,13 @@ export async function sendOrderingOpenIfNeeded(input: {
   await sendReminderEmails(
     recipients,
     `Ordering open — week of ${weekLabel}`,
-    `<p>Ordering for the week of <strong>${weekLabel}</strong> is now open.</p><p>Closes ${closesLabel}.</p>`,
-    `Ordering for week of ${weekLabel} is now open. Closes ${closesLabel}.`,
+    `<p>Ordering for the week of <strong>${weekLabel}</strong> is now open.</p>` +
+      `<p>Closes ${closesLabel}.</p>` +
+      orderingCtaHtml("Start your order"),
+    [
+      `Ordering for week of ${weekLabel} is now open. Closes ${closesLabel}.`,
+      orderingCtaText("Start your order"),
+    ].join("\n"),
   );
   await ReminderLog.updateOne(
     { menuWeekId: input.week._id, type: "ORDERING_OPEN" },

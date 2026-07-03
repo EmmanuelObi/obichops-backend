@@ -1,4 +1,5 @@
 import { DateTime } from "luxon";
+import { getEnv } from "../../config/env.js";
 import { getEmailAdapter } from "../../email/factory.js";
 import { AllowedEmail, Order, ReminderLog, User } from "../../models/index.js";
 import {
@@ -117,6 +118,32 @@ export async function logReminder(
     }
     throw error;
   }
+}
+
+/** Link to the staff ordering page. Unauthenticated users are routed via login. */
+export function getOrderingUrl(): string {
+  const { APP_BASE_URL } = getEnv();
+  return `${APP_BASE_URL.replace(/\/$/, "")}/staff`;
+}
+
+/** Inline-styled CTA button + fallback URL, safe for email clients. */
+export function orderingCtaHtml(label = "Place your order"): string {
+  const url = getOrderingUrl();
+  return [
+    `<p style="margin:24px 0;">`,
+    `<a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;`,
+    `padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600;`,
+    `font-family:Arial,Helvetica,sans-serif;">${label}</a>`,
+    `</p>`,
+    `<p style="font-size:12px;color:#6b7280;margin:0;">`,
+    `Or open <a href="${url}" style="color:#6b7280;">${url}</a>`,
+    `</p>`,
+  ].join("");
+}
+
+/** Plain-text CTA line for the text/multipart body. */
+export function orderingCtaText(label = "Place your order"): string {
+  return `${label}: ${getOrderingUrl()}`;
 }
 
 export async function sendReminderEmails(

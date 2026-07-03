@@ -14,6 +14,8 @@ import {
   isDueWithinWindow,
   localTimeOnCloseDay,
   logReminder,
+  orderingCtaHtml,
+  orderingCtaText,
   sendReminderEmails,
 } from "./reminderUtils.js";
 import { sendOrderingOpenIfNeeded } from "./sendOrderingOpen.js";
@@ -53,8 +55,12 @@ async function processNudges(
       await sendReminderEmails(
         recipients,
         `Reminder: order for week of ${weekLabel}`,
-        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>`,
-        `You haven't ordered yet. Closes ${closesLabel}.`,
+        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
+          orderingCtaHtml(),
+        [
+          `You haven't ordered yet. Closes ${closesLabel}.`,
+          orderingCtaText(),
+        ].join("\n"),
       );
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "FRIDAY_NUDGE_1" },
@@ -74,8 +80,12 @@ async function processNudges(
       await sendReminderEmails(
         recipients,
         `Reminder: order for week of ${weekLabel}`,
-        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>`,
-        `You haven't ordered yet. Closes ${closesLabel}.`,
+        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
+          orderingCtaHtml(),
+        [
+          `You haven't ordered yet. Closes ${closesLabel}.`,
+          orderingCtaText(),
+        ].join("\n"),
       );
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "FRIDAY_NUDGE_2" },
@@ -100,8 +110,12 @@ async function processNudges(
       await sendReminderEmails(
         recipients,
         `Final reminder: order by ${closesLabel}`,
-        `<p>Final reminder — please place your order for the week of <strong>${weekLabel}</strong> before ordering closes at <strong>${closesLabel}</strong>.</p>`,
-        `Final reminder: order before ${closesLabel}.`,
+        `<p>Final reminder — please place your order for the week of <strong>${weekLabel}</strong> before ordering closes at <strong>${closesLabel}</strong>.</p>` +
+          orderingCtaHtml(),
+        [
+          `Final reminder: order before ${closesLabel}.`,
+          orderingCtaText(),
+        ].join("\n"),
       );
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "SATURDAY_NUDGE" },
