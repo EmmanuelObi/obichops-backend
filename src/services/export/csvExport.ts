@@ -1,11 +1,9 @@
 import { stringify } from "csv-stringify/sync";
 import {
   formatNaira,
-  formatOrderableDayLabels,
   type WeekExportData,
   weekDateRangeLabel,
 } from "./loadExportData.js";
-import { DateTime } from "luxon";
 
 export function buildCsvExport(data: WeekExportData, includeExcessSummary = true): Buffer {
   const sections: string[] = [];
@@ -97,21 +95,11 @@ export function formatExportMeta(
 ): string {
   const includeWorkspace = options?.includeWorkspace ?? true;
   const weekRange = weekDateRangeLabel(data.week.weekStart, data.timezone);
-  const opens = DateTime.fromJSDate(data.week.orderWindowOpensAt, { zone: "utc" })
-    .setZone(data.timezone)
-    .toFormat("ccc d LLL, h:mm a");
-  const closes = DateTime.fromJSDate(data.week.orderWindowClosesAt, { zone: "utc" })
-    .setZone(data.timezone)
-    .toFormat("ccc d LLL, h:mm a");
 
   const lines = [
     includeWorkspace ? `Workspace: ${data.workspaceName}` : null,
     `Week: ${weekRange}`,
     `Vendor: ${data.vendorName}`,
-    `Orderable days: ${formatOrderableDayLabels(data.week.orderableDays)}`,
-    `Budget cap: ${formatNaira(data.week.maxOrderAmountCents)} per staff per day`,
-    `Max order days per staff: ${data.week.maxOrderDaysPerStaff ?? 2}`,
-    `Ordering window: ${opens} → ${closes}`,
   ].filter((line): line is string => line !== null);
 
   return lines.join("\n");
