@@ -22,11 +22,12 @@ export interface PackMenuItemForDay {
 export function computePackQuantityForDay(
   foodLines: Array<{ quantity: number; packsRequired: number }>,
 ): number {
-  const itemPacks = foodLines.reduce(
+  const extraPacks = foodLines.reduce(
     (sum, line) => sum + line.packsRequired * line.quantity,
     0,
   );
-  return Math.max(1, Math.ceil(itemPacks));
+  // Every order day includes 1 base pack, plus any extra packs from food items.
+  return 1 + Math.ceil(extraPacks);
 }
 
 export function computePackLineItems(input: {
