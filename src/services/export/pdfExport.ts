@@ -2,6 +2,7 @@ import PDFDocument from "pdfkit";
 import { DateTime } from "luxon";
 import {
   formatNairaPdf,
+  formatPdfAmount,
   type ExportLineRow,
   type WeekExportData,
 } from "./loadExportData.js";
@@ -113,7 +114,7 @@ export async function buildPdfExport(
           .fontSize(10)
           .fillColor("#444")
           .text(
-            `  - ${row.item} x ${row.quantity} @ ${formatNairaPdf(row.unitPriceCents)} = ${formatNairaPdf(row.lineTotalCents)}`,
+            `  - ${row.item} x ${row.quantity} @ ${formatPdfAmount(row.unitPriceCents)} = ${formatPdfAmount(row.lineTotalCents)}`,
           );
       }
 
@@ -128,24 +129,11 @@ export async function buildPdfExport(
       doc
         .fontSize(10)
         .fillColor("#333")
-        .text(`  Day total: ${formatNairaPdf(staffDayTotal(rows))}`, { indent: 8 });
+        .text(`  Day total: ${formatPdfAmount(staffDayTotal(rows))}`, { indent: 8 });
       doc.moveDown(0.5);
     }
 
     doc.moveDown(0.3);
-  }
-
-  const filteredTotals = data.itemQuantityTotals.filter((total) =>
-    orderableLabels.has(total.day),
-  );
-
-  if (filteredTotals.length > 0) {
-    doc.addPage();
-    doc.fontSize(14).fillColor("#111").text("Quantity totals per item");
-    doc.moveDown();
-    for (const total of filteredTotals) {
-      doc.fontSize(10).text(`${total.day} - ${total.item}: ${total.quantity}`);
-    }
   }
 
   if (includeExcess && data.excessRows.length > 0) {

@@ -58,8 +58,12 @@ function formatNaira(cents: number): string {
 }
 
 /** PDF-safe currency (Helvetica lacks the naira glyph). */
+export function formatPdfAmount(cents: number): string {
+  return (cents / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 });
+}
+
 export function formatNairaPdf(cents: number): string {
-  return `NGN ${(cents / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+  return `NGN ${formatPdfAmount(cents)}`;
 }
 
 export function formatOrderableDayLabels(days: string[]): string {
