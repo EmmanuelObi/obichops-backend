@@ -45,6 +45,10 @@ import {
   buildPdfExport,
   buildVendorPdfExport,
 } from "../../services/export/pdfExport.js";
+import {
+  buildDocxExport,
+  buildVendorDocxExport,
+} from "../../services/export/docxExport.js";
 import { getOrderRecipientDisplay } from "../../services/orderRecipient.js";
 import { getExcessPaymentStatus } from "../../types/excessPayment.js";
 import { sendOrderingOpenIfNeeded } from "../../services/reminders/sendOrderingOpen.js";
@@ -329,7 +333,12 @@ router.get(
     if (!workspaceId) return;
 
     const { id } = req.params;
-    const format = req.query.format === "pdf" ? "pdf" : "csv";
+    const format =
+      req.query.format === "pdf"
+        ? "pdf"
+        : req.query.format === "docx"
+          ? "docx"
+          : "csv";
 
     const data = await loadWeekExportData(workspaceId, String(id));
     const filename = exportFilename(data, format);
@@ -337,6 +346,17 @@ router.get(
     if (format === "pdf") {
       const buffer = await buildPdfExport(data);
       res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      res.send(buffer);
+      return;
+    }
+
+    if (format === "docx") {
+      const buffer = await buildDocxExport(data);
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      );
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       res.send(buffer);
       return;
@@ -350,7 +370,7 @@ router.get(
 );
 
 const sendVendorSchema = z.object({
-  format: z.enum(["csv", "pdf"]),
+  format: z.enum(["csv", "pdf", "docx"]),
 });
 
 router.post(
@@ -367,7 +387,9 @@ router.post(
     const buffer =
       body.format === "pdf"
         ? await buildVendorPdfExport(data)
-        : buildVendorCsvExport(data);
+        : body.format === "docx"
+          ? await buildVendorDocxExport(data)
+          : buildVendorCsvExport(data);
     const filename = exportFilename(data, body.format);
     const weekLabel = weekDateRangeLabel(data.week.weekStart, data.timezone);
 
@@ -381,7 +403,12 @@ router.post(
         {
           filename,
           content: buffer,
-          contentType: body.format === "pdf" ? "application/pdf" : "text/csv",
+          contentType:
+            body.format === "pdf"
+              ? "application/pdf"
+              : body.format === "docx"
+                ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                : "text/csv",
         },
       ],
     });
@@ -390,7 +417,7 @@ router.post(
       workspaceId,
       menuWeekId: data.week._id,
       vendorId: data.week.activeVendorId,
-      format: body.format.toUpperCase() as "PDF" | "CSV",
+      format: body.format.toUpperCase() as "PDF" | "CSV" | "DOCX",
       sentAt: new Date(),
       sentByUserId: auth.sub,
     });

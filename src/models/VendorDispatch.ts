@@ -1,6 +1,6 @@
 import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
 
-export const DISPATCH_FORMATS = ["PDF", "CSV"] as const;
+export const DISPATCH_FORMATS = ["PDF", "CSV", "DOCX"] as const;
 export type DispatchFormat = (typeof DISPATCH_FORMATS)[number];
 
 const vendorDispatchSchema = new Schema(

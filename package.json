@@ -26,6 +26,7 @@
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "csv-stringify": "^6.8.0",
+    "docx": "^9.7.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",

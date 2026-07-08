@@ -81,7 +81,7 @@ export function buildVendorCsvExport(data: WeekExportData): Buffer {
 
 export function exportFilename(
   data: WeekExportData,
-  format: "csv" | "pdf",
+  format: "csv" | "pdf" | "docx",
 ): string {
   const range = weekDateRangeLabel(data.week.weekStart, data.timezone)
     .replace(/\s+/g, "-")
