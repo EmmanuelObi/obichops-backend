@@ -343,29 +343,35 @@ router.get(
     const data = await loadWeekExportData(workspaceId, String(id));
     const filename = exportFilename(data, format);
 
-    if (format === "pdf") {
-      const buffer = await buildPdfExport(data);
-      res.setHeader("Content-Type", "application/pdf");
-      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(buffer);
-      return;
-    }
-
     if (format === "docx") {
       const buffer = await buildDocxExport(data);
       res.setHeader(
         "Content-Type",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       );
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${filename}"`,
+      );
+      res.setHeader("Content-Length", String(buffer.length));
+      res.end(buffer);
+      return;
+    }
+
+    if (format === "pdf") {
+      const buffer = await buildPdfExport(data);
+      res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-      res.send(buffer);
+      res.setHeader("Content-Length", String(buffer.length));
+      res.end(buffer);
       return;
     }
 
     const buffer = buildCsvExport(data);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(buffer);
+    res.setHeader("Content-Length", String(buffer.length));
+    res.end(buffer);
   }),
 );
 

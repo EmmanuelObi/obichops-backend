@@ -8,9 +8,14 @@ const app = createApp();
 const baseHandler = configure({
   app,
   // API Gateway HTTP API requires base64 for non-text bodies. The library only
-  // treats image/* as binary by default; PDF streams are corrupted without this.
+  // treats image/* as binary by default; PDF/DOCX streams are corrupted without this.
   binarySettings: {
-    contentTypes: ["image/*", "application/pdf"],
+    contentTypes: [
+      "image/*",
+      "application/pdf",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/octet-stream",
+    ],
   },
 });
 
