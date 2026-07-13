@@ -198,7 +198,7 @@ export async function loadWeekExportData(
 export function weekDateRangeLabel(weekStart: Date, timezone: string): string {
   const start = DateTime.fromJSDate(weekStart, { zone: "utc" }).setZone(timezone);
   const end = start.plus({ days: 4 });
-  return `${start.toFormat("d LLL")} – ${end.toFormat("d LLL yyyy")}`;
+  return `${start.toFormat("d LLL")} - ${end.toFormat("d LLL yyyy")}`;
 }
 
 export async function getMenuWeekOrThrow(

@@ -8,7 +8,7 @@ import {
 } from "docx";
 import { DateTime } from "luxon";
 import {
-  formatNaira,
+  formatPdfAmount,
   type ExportLineRow,
   type WeekExportData,
 } from "./loadExportData.js";
@@ -60,12 +60,13 @@ function buildNoteLookup(
   return lookup;
 }
 
+/** Keep Word-safe ASCII/common punctuation — avoid ₦ and fancy dashes that render as junk. */
 function para(
   text: string,
   options?: Partial<IParagraphOptions>,
 ): Paragraph {
   return new Paragraph({
-    children: [new TextRun(text)],
+    children: [new TextRun({ text })],
     ...options,
   });
 }
@@ -120,7 +121,7 @@ export async function buildDocxExport(
       for (const row of sortedRows) {
         children.push(
           para(
-            `- ${row.item} x ${row.quantity} @ ${formatNaira(row.unitPriceCents)} = ${formatNaira(row.lineTotalCents)}`,
+            `- ${row.item} x ${row.quantity} @ ${formatPdfAmount(row.unitPriceCents)} = ${formatPdfAmount(row.lineTotalCents)}`,
           ),
         );
       }
@@ -134,7 +135,7 @@ export async function buildDocxExport(
         );
       }
 
-      children.push(para(`Day total: ${formatNaira(staffDayTotal(rows))}`));
+      children.push(para(`Day total: ${formatPdfAmount(staffDayTotal(rows))}`));
       children.push(para(""));
     }
   }
@@ -144,7 +145,7 @@ export async function buildDocxExport(
     for (const row of data.excessRows) {
       children.push(
         para(
-          `${row.staffName} (${row.staffEmail}): excess ${formatNaira(row.excessCents)} - acknowledged: ${row.excessAcknowledged ? "Yes" : "No"}`,
+          `${row.staffName} (${row.staffEmail}): excess ${formatPdfAmount(row.excessCents)} - acknowledged: ${row.excessAcknowledged ? "Yes" : "No"}`,
         ),
       );
     }
