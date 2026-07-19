@@ -5,7 +5,7 @@ import {
   Order,
   User,
   Vendor,
-  Workspace,
+  Chopspace,
   type WorkspaceDocument,
 } from "../models/index.js";
 import {
@@ -123,13 +123,13 @@ export async function getWorkspaceListStats(
 }
 
 export async function listWorkspacesWithStats() {
-  const workspaces = await Workspace.find().sort({ createdAt: -1 });
+  const workspaces = await Chopspace.find().sort({ createdAt: -1 });
   const stats = await Promise.all(
-    workspaces.map((workspace) => getWorkspaceListStats(workspace._id.toString())),
+    workspaces.map((chopspace) => getWorkspaceListStats(chopspace._id.toString())),
   );
 
-  return workspaces.map((workspace, index) => ({
-    ...serializeWorkspace(workspace),
+  return workspaces.map((chopspace, index) => ({
+    ...serializeWorkspace(chopspace),
     stats: stats[index],
   }));
 }
@@ -139,8 +139,8 @@ export async function getWorkspaceOverview(workspaceId: string) {
     return null;
   }
 
-  const workspace = await Workspace.findById(workspaceId);
-  if (!workspace) {
+  const chopspace = await Chopspace.findById(workspaceId);
+  if (!chopspace) {
     return null;
   }
 
@@ -184,7 +184,7 @@ export async function getWorkspaceOverview(workspaceId: string) {
   const userMap = new Map(users.map((user) => [user._id.toString(), user]));
 
   return {
-    workspace: serializeWorkspace(workspace),
+    chopspace: serializeWorkspace(chopspace),
     stats: {
       ...stats,
       activeStaffCount,
@@ -222,15 +222,15 @@ function workspaceObjectId(workspaceId: string) {
 }
 
 export async function getPlatformDashboard(): Promise<PlatformDashboard> {
-  const workspaces = await Workspace.find().sort({ createdAt: -1 });
+  const workspaces = await Chopspace.find().sort({ createdAt: -1 });
   const workspaceStats = await Promise.all(
-    workspaces.map((workspace) => getWorkspaceListStats(workspace._id.toString())),
+    workspaces.map((chopspace) => getWorkspaceListStats(chopspace._id.toString())),
   );
 
   const adminCounts = await Promise.all(
-    workspaces.map((workspace) =>
+    workspaces.map((chopspace) =>
       User.countDocuments({
-        workspaceId: workspace._id,
+        workspaceId: chopspace._id,
         role: "ADMIN",
         isActive: true,
       }),
@@ -254,28 +254,28 @@ export async function getPlatformDashboard(): Promise<PlatformDashboard> {
   const attention: PlatformAttentionItem[] = [];
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-  workspaces.forEach((workspace, index) => {
+  workspaces.forEach((chopspace, index) => {
     const stats = workspaceStats[index];
     const adminCount = adminCounts[index];
 
-    if (!workspace.isActive) {
+    if (!chopspace.isActive) {
       attention.push({
-        workspaceId: workspace._id.toString(),
-        name: workspace.name,
-        slug: workspace.slug,
+        workspaceId: chopspace._id.toString(),
+        name: chopspace.name,
+        slug: chopspace.slug,
         reason: "suspended",
-        details: "Workspace is suspended",
+        details: "Chopspace is suspended",
       });
       return;
     }
 
     if (adminCount === 0) {
       attention.push({
-        workspaceId: workspace._id.toString(),
-        name: workspace.name,
-        slug: workspace.slug,
+        workspaceId: chopspace._id.toString(),
+        name: chopspace.name,
+        slug: chopspace.slug,
         reason: "no_admin",
-        details: "No active workspace admin",
+        details: "No active chopspace admin",
       });
     }
 
@@ -285,9 +285,9 @@ export async function getPlatformDashboard(): Promise<PlatformDashboard> {
       stats.currentMenuWeekStatus === "OPEN"
     ) {
       attention.push({
-        workspaceId: workspace._id.toString(),
-        name: workspace.name,
-        slug: workspace.slug,
+        workspaceId: chopspace._id.toString(),
+        name: chopspace.name,
+        slug: chopspace.slug,
         reason: "no_orders",
         details: "Open ordering week with no submitted orders",
       });
@@ -298,9 +298,9 @@ export async function getPlatformDashboard(): Promise<PlatformDashboard> {
       new Date(stats.lastActivityAt).getTime() < thirtyDaysAgo
     ) {
       attention.push({
-        workspaceId: workspace._id.toString(),
-        name: workspace.name,
-        slug: workspace.slug,
+        workspaceId: chopspace._id.toString(),
+        name: chopspace.name,
+        slug: chopspace.slug,
         reason: "no_activity",
         details: stats.lastActivityAt
           ? "No activity in the last 30 days"
@@ -314,8 +314,8 @@ export async function getPlatformDashboard(): Promise<PlatformDashboard> {
   return {
     totals: {
       workspaces: workspaces.length,
-      activeWorkspaces: workspaces.filter((workspace) => workspace.isActive).length,
-      suspendedWorkspaces: workspaces.filter((workspace) => !workspace.isActive).length,
+      activeWorkspaces: workspaces.filter((chopspace) => chopspace.isActive).length,
+      suspendedWorkspaces: workspaces.filter((chopspace) => !chopspace.isActive).length,
       activeTeamMembers,
       openMenuWeeks,
       submittedOrdersThisWeek,

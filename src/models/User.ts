@@ -13,7 +13,7 @@ const userSchema = new Schema(
     mustChangePassword: { type: Boolean, default: false },
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: "Workspace",
+      ref: "Chopspace",
       default: null,
       index: true,
     },

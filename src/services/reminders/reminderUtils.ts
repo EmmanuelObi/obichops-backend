@@ -10,6 +10,7 @@ import {
   REMINDER_FRIDAY_EVENING_MINUTE,
   type ReminderType,
 } from "../../types/reminders.js";
+import { sendReminderPushes } from "../push/expoPush.js";
 
 export function isDueWithinWindow(
   target: Date,
@@ -89,7 +90,9 @@ export async function getPendingStaffEmails(
         menuWeekId,
         status: "SUBMITTED",
       })
-    ).map((o) => o.userId?.toString()).filter((id): id is string => Boolean(id)),
+    )
+      .map((o) => o.userId?.toString())
+      .filter((id): id is string => Boolean(id)),
   );
 
   return staffUsers
@@ -113,7 +116,12 @@ export async function logReminder(
     });
     return true;
   } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === 11000) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === 11000
+    ) {
       return false;
     }
     throw error;
@@ -157,4 +165,30 @@ export async function sendReminderEmails(
   for (const to of recipients) {
     await email.send({ to, subject, html, text });
   }
+}
+
+/** Email + Expo push for the same reminder recipients. */
+export async function sendReminders(input: {
+  workspaceId: string;
+  recipients: string[];
+  type: ReminderType;
+  subject: string;
+  html: string;
+  text: string;
+  pushTitle: string;
+  pushBody: string;
+}): Promise<void> {
+  await sendReminderEmails(
+    input.recipients,
+    input.subject,
+    input.html,
+    input.text,
+  );
+  await sendReminderPushes({
+    workspaceId: input.workspaceId,
+    recipientEmails: input.recipients,
+    title: input.pushTitle,
+    body: input.pushBody,
+    type: input.type,
+  });
 }

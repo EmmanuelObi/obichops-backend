@@ -97,7 +97,7 @@ export function formatExportMeta(
   const weekRange = weekDateRangeLabel(data.week.weekStart, data.timezone);
 
   const lines = [
-    includeWorkspace ? `Workspace: ${data.workspaceName}` : null,
+    includeWorkspace ? `Chopspace: ${data.workspaceName}` : null,
     `Week: ${weekRange}`,
     `Vendor: ${data.vendorName}`,
   ].filter((line): line is string => line !== null);

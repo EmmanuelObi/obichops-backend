@@ -1,5 +1,5 @@
 import { DateTime } from "luxon";
-import { MenuWeek, ReminderLog, Workspace, type WorkspaceDocument } from "../../models/index.js";
+import { MenuWeek, ReminderLog, Chopspace, type WorkspaceDocument } from "../../models/index.js";
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
 import {
   REMINDER_SATURDAY_MORNING_HOUR,
@@ -16,7 +16,7 @@ import {
   logReminder,
   orderingCtaHtml,
   orderingCtaText,
-  sendReminderEmails,
+  sendReminders,
 } from "./reminderUtils.js";
 import { sendOrderingOpenIfNeeded } from "./sendOrderingOpen.js";
 
@@ -52,16 +52,21 @@ async function processNudges(
     const logged = await logReminder(workspaceId, menuWeekId, "FRIDAY_NUDGE_1", 0);
     if (logged) {
       const recipients = await getPendingStaffEmails(workspaceId, menuWeekId);
-      await sendReminderEmails(
+      await sendReminders({
+        workspaceId,
         recipients,
-        `Reminder: order for week of ${weekLabel}`,
-        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
+        type: "FRIDAY_NUDGE_1",
+        subject: `Reminder: order for week of ${weekLabel}`,
+        html:
+          `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
           orderingCtaHtml(),
-        [
+        text: [
           `You haven't ordered yet. Closes ${closesLabel}.`,
           orderingCtaText(),
         ].join("\n"),
-      );
+        pushTitle: "Reminder: place your order",
+        pushBody: `Ordering closes ${closesLabel}.`,
+      });
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "FRIDAY_NUDGE_1" },
         { recipientCount: recipients.length },
@@ -77,16 +82,21 @@ async function processNudges(
     const logged = await logReminder(workspaceId, menuWeekId, "FRIDAY_NUDGE_2", 0);
     if (logged) {
       const recipients = await getPendingStaffEmails(workspaceId, menuWeekId);
-      await sendReminderEmails(
+      await sendReminders({
+        workspaceId,
         recipients,
-        `Reminder: order for week of ${weekLabel}`,
-        `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
+        type: "FRIDAY_NUDGE_2",
+        subject: `Reminder: order for week of ${weekLabel}`,
+        html:
+          `<p>You haven't placed your meal order yet. Ordering closes <strong>${closesLabel}</strong>.</p>` +
           orderingCtaHtml(),
-        [
+        text: [
           `You haven't ordered yet. Closes ${closesLabel}.`,
           orderingCtaText(),
         ].join("\n"),
-      );
+        pushTitle: "Reminder: place your order",
+        pushBody: `Ordering closes ${closesLabel}.`,
+      });
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "FRIDAY_NUDGE_2" },
         { recipientCount: recipients.length },
@@ -107,16 +117,21 @@ async function processNudges(
     const logged = await logReminder(workspaceId, menuWeekId, "SATURDAY_NUDGE", 0);
     if (logged) {
       const recipients = await getPendingStaffEmails(workspaceId, menuWeekId);
-      await sendReminderEmails(
+      await sendReminders({
+        workspaceId,
         recipients,
-        `Final reminder: order by ${closesLabel}`,
-        `<p>Final reminder — please place your order for the week of <strong>${weekLabel}</strong> before ordering closes at <strong>${closesLabel}</strong>.</p>` +
+        type: "SATURDAY_NUDGE",
+        subject: `Final reminder: order by ${closesLabel}`,
+        html:
+          `<p>Final reminder — please place your order for the week of <strong>${weekLabel}</strong> before ordering closes at <strong>${closesLabel}</strong>.</p>` +
           orderingCtaHtml(),
-        [
+        text: [
           `Final reminder: order before ${closesLabel}.`,
           orderingCtaText(),
         ].join("\n"),
-      );
+        pushTitle: "Final reminder",
+        pushBody: `Order before ${closesLabel}.`,
+      });
       await ReminderLog.updateOne(
         { menuWeekId: week._id, type: "SATURDAY_NUDGE" },
         { recipientCount: recipients.length },
@@ -173,13 +188,13 @@ async function transitionMenuWeekStatuses(now: Date): Promise<MenuWeekDocument[]
 }
 
 function workspaceReminderSettings(
-  workspace: WorkspaceDocument,
+  chopspace: WorkspaceDocument,
 ): WorkspaceReminderSettings {
   return {
-    reminderWindowOpen: workspace.settings?.reminderWindowOpen,
-    reminderPendingNudge: workspace.settings?.reminderPendingNudge,
-    reminderFridayEvening: workspace.settings?.reminderFridayEvening,
-    reminderFinalNudge: workspace.settings?.reminderFinalNudge,
+    reminderWindowOpen: chopspace.settings?.reminderWindowOpen,
+    reminderPendingNudge: chopspace.settings?.reminderPendingNudge,
+    reminderFridayEvening: chopspace.settings?.reminderFridayEvening,
+    reminderFinalNudge: chopspace.settings?.reminderFinalNudge,
   };
 }
 
@@ -188,13 +203,13 @@ export async function runCronJob(now = new Date()): Promise<{
   workspacesProcessed: number;
 }> {
   const autoOpened = await transitionMenuWeekStatuses(now);
-  const workspaces = await Workspace.find({ isActive: true });
+  const workspaces = await Chopspace.find({ isActive: true });
   let workspacesProcessed = 0;
 
-  for (const workspace of workspaces) {
-    const workspaceId = workspace._id.toString();
+  for (const chopspace of workspaces) {
+    const workspaceId = chopspace._id.toString();
     const timezone = await getWorkspaceTimezone(workspaceId);
-    const settings = workspaceReminderSettings(workspace);
+    const settings = workspaceReminderSettings(chopspace);
 
     for (const week of autoOpened) {
       if (week.workspaceId.toString() !== workspaceId) continue;

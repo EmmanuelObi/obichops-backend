@@ -8,7 +8,7 @@ const menuWeekSchema = new Schema(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: "Workspace",
+      ref: "Chopspace",
       required: true,
       index: true,
     },

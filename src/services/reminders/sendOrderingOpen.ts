@@ -7,7 +7,7 @@ import {
   logReminder,
   orderingCtaHtml,
   orderingCtaText,
-  sendReminderEmails,
+  sendReminders,
 } from "./reminderUtils.js";
 
 export interface OrderingOpenSettings {
@@ -42,17 +42,22 @@ export async function sendOrderingOpenIfNeeded(input: {
   }
 
   const recipients = await getStaffEmails(input.workspaceId);
-  await sendReminderEmails(
+  await sendReminders({
+    workspaceId: input.workspaceId,
     recipients,
-    `Ordering open — week of ${weekLabel}`,
-    `<p>Ordering for the week of <strong>${weekLabel}</strong> is now open.</p>` +
+    type: "ORDERING_OPEN",
+    subject: `Ordering open — week of ${weekLabel}`,
+    html:
+      `<p>Ordering for the week of <strong>${weekLabel}</strong> is now open.</p>` +
       `<p>Closes ${closesLabel}.</p>` +
       orderingCtaHtml("Start your order"),
-    [
+    text: [
       `Ordering for week of ${weekLabel} is now open. Closes ${closesLabel}.`,
       orderingCtaText("Start your order"),
     ].join("\n"),
-  );
+    pushTitle: "Ordering is open",
+    pushBody: `Week of ${weekLabel} — closes ${closesLabel}.`,
+  });
   await ReminderLog.updateOne(
     { menuWeekId: input.week._id, type: "ORDERING_OPEN" },
     { recipientCount: recipients.length },

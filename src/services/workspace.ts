@@ -1,15 +1,15 @@
-import { AllowedEmail, Workspace } from "../models/index.js";
+import { AllowedEmail, Chopspace } from "../models/index.js";
 import { getEmailDomain } from "./emailDomain.js";
 
 export async function resolveWorkspaceIdBySlug(
   slug: string,
 ): Promise<string | null> {
   const normalized = slug.trim().toLowerCase();
-  const workspace = await Workspace.findOne({
+  const chopspace = await Chopspace.findOne({
     slug: normalized,
     isActive: true,
   });
-  return workspace ? workspace._id.toString() : null;
+  return chopspace ? chopspace._id.toString() : null;
 }
 
 export type WorkspaceAuthResolution =
@@ -19,7 +19,7 @@ export type WorkspaceAuthResolution =
   | { kind: "slug_not_found" };
 
 /**
- * Resolve which workspace context to use for login / password reset.
+ * Resolve which chopspace context to use for login / password reset.
  * Slug takes precedence when provided; otherwise uses email domain or invite record.
  */
 export async function resolveWorkspaceForAuth(
@@ -36,7 +36,7 @@ export async function resolveWorkspaceForAuth(
 
   const domain = getEmailDomain(normalizedEmail);
   if (domain) {
-    const workspaces = await Workspace.find({
+    const workspaces = await Chopspace.find({
       isActive: true,
       "settings.allowedEmailDomains": domain,
     }).select("_id");
@@ -81,6 +81,6 @@ export function workspaceIdForUserQuery(
 }
 
 export async function isWorkspaceActive(workspaceId: string): Promise<boolean> {
-  const workspace = await Workspace.findById(workspaceId).select("isActive");
-  return workspace?.isActive ?? false;
+  const chopspace = await Chopspace.findById(workspaceId).select("isActive");
+  return chopspace?.isActive ?? false;
 }

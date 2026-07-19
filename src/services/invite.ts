@@ -1,6 +1,6 @@
 import { getEnv } from "../config/env.js";
 import { getEmailAdapter } from "../email/factory.js";
-import { Workspace } from "../models/Workspace.js";
+import { Chopspace } from "../models/Workspace.js";
 
 export async function sendStaffInviteEmail(input: {
   to: string;
@@ -8,9 +8,9 @@ export async function sendStaffInviteEmail(input: {
   temporaryPassword: string;
   role: "STAFF" | "ADMIN";
 }): Promise<void> {
-  const workspace = await Workspace.findById(input.workspaceId);
-  if (!workspace) {
-    throw new Error("Workspace not found");
+  const chopspace = await Chopspace.findById(input.workspaceId);
+  if (!chopspace) {
+    throw new Error("Chopspace not found");
   }
 
   const { APP_BASE_URL } = getEnv();
@@ -20,17 +20,17 @@ export async function sendStaffInviteEmail(input: {
   const email = getEmailAdapter();
   await email.send({
     to: input.to,
-    subject: `You're invited to ${workspace.name} on Obi's Chops`,
+    subject: `You're invited to ${chopspace.name} on Obi's Chops`,
     html: `
-      <p>You've been added as <strong>${roleLabel}</strong> for <strong>${workspace.name}</strong>.</p>
-      <p><strong>Workspace:</strong> ${workspace.slug}</p>
+      <p>You've been added as <strong>${roleLabel}</strong> for <strong>${chopspace.name}</strong>.</p>
+      <p><strong>Chopspace:</strong> ${chopspace.slug}</p>
       <p><strong>Email:</strong> ${input.to}</p>
       <p><strong>Temporary password:</strong> <code>${input.temporaryPassword}</code></p>
       <p><a href="${loginUrl}">Sign in here</a> — you will be asked to enter your name and set a new password on first login.</p>
       <p>If you did not expect this invitation, you can ignore this email.</p>
     `,
     text: [
-      `You've been added to ${workspace.name} (${workspace.slug}) on Obi's Chops.`,
+      `You've been added to ${chopspace.name} (${chopspace.slug}) on Obi's Chops.`,
       `Email: ${input.to}`,
       `Temporary password: ${input.temporaryPassword}`,
       `Sign in: ${loginUrl}`,

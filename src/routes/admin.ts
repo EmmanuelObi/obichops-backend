@@ -11,7 +11,7 @@ import {
   requireActiveWorkspace,
   requireWorkspaceContext,
 } from "../middleware/workspace.js";
-import { AllowedEmail, Order, User, Workspace } from "../models/index.js";
+import { AllowedEmail, Order, User, Chopspace } from "../models/index.js";
 import {
   inviteWorkspaceMember,
   setAllowedEmailActive,
@@ -77,20 +77,20 @@ router.get(
     const workspaceId = requireWorkspaceContext(req as AuthenticatedRequest, res);
     if (!workspaceId) return;
 
-    const workspace = await Workspace.findById(workspaceId);
-    if (!workspace) {
-      res.status(404).json({ error: "Workspace not found" });
+    const chopspace = await Chopspace.findById(workspaceId);
+    if (!chopspace) {
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
     const allowedEmailDomains =
-      (workspace.settings?.allowedEmailDomains as string[] | undefined) ?? [];
+      (chopspace.settings?.allowedEmailDomains as string[] | undefined) ?? [];
 
     res.json({
-      workspace: {
-        id: workspace._id.toString(),
-        name: workspace.name,
-        slug: workspace.slug,
+      chopspace: {
+        id: chopspace._id.toString(),
+        name: chopspace.name,
+        slug: chopspace.slug,
         allowedEmailDomains,
       },
     });
@@ -137,15 +137,15 @@ router.post(
         return;
       }
       if (err instanceof Error && err.message === "DOMAIN_NOT_ALLOWED") {
-        const workspace = await Workspace.findById(workspaceId);
+        const chopspace = await Chopspace.findById(workspaceId);
         const domains =
-          (workspace?.settings?.allowedEmailDomains as string[] | undefined) ??
+          (chopspace?.settings?.allowedEmailDomains as string[] | undefined) ??
           [];
         res.status(400).json({
           error:
             domains.length > 0
               ? `Email must use an allowed domain: ${formatAllowedDomains(domains)}`
-              : "Email domain is not allowed for this workspace",
+              : "Email domain is not allowed for this chopspace",
         });
         return;
       }

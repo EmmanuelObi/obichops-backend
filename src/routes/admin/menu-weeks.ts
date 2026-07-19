@@ -9,7 +9,7 @@ import {
   type AuthenticatedRequest,
 } from "../../middleware/auth.js";
 import { requireWorkspaceContext } from "../../middleware/workspace.js";
-import { MenuWeek, Order, ReminderLog, User, Vendor, VendorDispatch, Workspace } from "../../models/index.js";
+import { MenuWeek, Order, ReminderLog, User, Vendor, VendorDispatch, Chopspace } from "../../models/index.js";
 import { MENU_WEEK_STATUSES } from "../../models/MenuWeek.js";
 import { DAYS_OF_WEEK } from "../../types/days.js";
 import {
@@ -269,14 +269,14 @@ router.patch(
     await week.save();
 
     if (openingWeek) {
-      const workspace = await Workspace.findById(workspaceId);
+      const chopspace = await Chopspace.findById(workspaceId);
       try {
         const result = await sendOrderingOpenIfNeeded({
           workspaceId,
           week,
           timezone,
           settings: {
-            reminderWindowOpen: workspace?.settings?.reminderWindowOpen,
+            reminderWindowOpen: chopspace?.settings?.reminderWindowOpen,
           },
         });
         openNotificationSent = result.sent;

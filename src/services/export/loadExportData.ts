@@ -6,7 +6,7 @@ import {
   Order,
   User,
   Vendor,
-  Workspace,
+  Chopspace,
 } from "../../models/index.js";
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
 import type { OrderDocument } from "../../models/Order.js";
@@ -77,8 +77,8 @@ export async function loadWeekExportData(
   menuWeekId: string,
   _options?: { vendorOnly?: boolean },
 ): Promise<WeekExportData> {
-  const workspace = await Workspace.findById(workspaceId);
-  if (!workspace) throw new Error("Workspace not found");
+  const chopspace = await Chopspace.findById(workspaceId);
+  if (!chopspace) throw new Error("Chopspace not found");
 
   const week = await MenuWeek.findOne({ _id: menuWeekId, workspaceId });
   if (!week) throw new Error("Menu week not found");
@@ -86,7 +86,7 @@ export async function loadWeekExportData(
   const vendor = await Vendor.findOne({ _id: week.activeVendorId, workspaceId });
   if (!vendor) throw new Error("Vendor not found");
 
-  const timezone = workspace.settings?.timezone ?? "Africa/Lagos";
+  const timezone = chopspace.settings?.timezone ?? "Africa/Lagos";
   const orderableSet = new Set(week.orderableDays);
   const orderFilter: Record<string, unknown> = {
     workspaceId,
@@ -182,7 +182,7 @@ export async function loadWeekExportData(
   const excessRows = summaryRows.filter((row) => row.excessCents > 0);
 
   return {
-    workspaceName: workspace.name,
+    workspaceName: chopspace.name,
     week,
     vendorName: vendor.name,
     vendorEmail: vendor.email,

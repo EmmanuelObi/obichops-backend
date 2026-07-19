@@ -5,6 +5,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 import adminRouter from "./routes/admin.js";
 import authRouter from "./routes/auth.js";
 import menuWeeksRouter from "./routes/menu-weeks.js";
+import onboardingRouter from "./routes/onboarding.js";
 import ordersRouter from "./routes/orders.js";
 import platformRouter from "./routes/platform.js";
 
@@ -28,6 +29,7 @@ export function createApp() {
   });
 
   app.use("/auth", authRouter);
+  app.use("/onboarding", onboardingRouter);
   app.use("/platform", platformRouter);
   app.use("/menu-weeks", menuWeeksRouter);
   app.use("/orders", ordersRouter);

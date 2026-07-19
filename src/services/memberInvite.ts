@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { AllowedEmail, User, Workspace } from "../models/index.js";
+import { AllowedEmail, User, Chopspace } from "../models/index.js";
 import { generateTemporaryPassword, hashPassword } from "./password.js";
 import { sendStaffInviteEmail } from "./invite.js";
 import { isEmailDomainAllowed } from "./emailDomain.js";
@@ -20,16 +20,16 @@ export async function inviteWorkspaceMember(input: {
   skipDomainCheck?: boolean;
 }): Promise<InviteMemberResult> {
   const email = input.email.toLowerCase();
-  const workspace = await Workspace.findById(input.workspaceId);
-  if (!workspace) {
-    throw new Error("Workspace not found");
+  const chopspace = await Chopspace.findById(input.workspaceId);
+  if (!chopspace) {
+    throw new Error("Chopspace not found");
   }
 
   if (
     !input.skipDomainCheck &&
     !isEmailDomainAllowed(
       email,
-      workspace.settings?.allowedEmailDomains as string[] | undefined,
+      chopspace.settings?.allowedEmailDomains as string[] | undefined,
     )
   ) {
     throw new Error("DOMAIN_NOT_ALLOWED");

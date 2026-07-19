@@ -7,6 +7,8 @@ export const PLATFORM_AUDIT_ACTIONS = [
   "WORKSPACE_UPDATED",
   "WORKSPACE_ADMIN_INVITED",
   "WORKSPACE_ENTERED",
+  "ONBOARDING_APPROVED",
+  "ONBOARDING_REJECTED",
 ] as const;
 
 export type PlatformAuditAction = (typeof PLATFORM_AUDIT_ACTIONS)[number];
@@ -15,7 +17,7 @@ const platformAuditLogSchema = new Schema(
   {
     workspaceId: {
       type: Schema.Types.ObjectId,
-      ref: "Workspace",
+      ref: "Chopspace",
       default: null,
       index: true,
     },

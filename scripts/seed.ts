@@ -8,7 +8,7 @@ import {
   MenuWeek,
   User,
   Vendor,
-  Workspace,
+  Chopspace,
 } from "../src/models/index.js";
 import { hashPassword } from "../src/services/password.js";
 import { DateTime } from "luxon";
@@ -166,9 +166,9 @@ async function main() {
     console.log("Super admin already exists:", superEmail);
   }
 
-  let workspace = await Workspace.findOne({ slug: "verto" });
-  if (!workspace) {
-    workspace = await Workspace.create({
+  let chopspace = await Chopspace.findOne({ slug: "verto" });
+  if (!chopspace) {
+    chopspace = await Chopspace.create({
       name: "Verto",
       slug: "verto",
       isActive: true,
@@ -176,19 +176,19 @@ async function main() {
         allowedEmailDomains: VERTO_ALLOWED_EMAIL_DOMAINS,
       },
     });
-    console.log("Created workspace Verto:", workspace._id.toString());
+    console.log("Created chopspace Verto:", chopspace._id.toString());
     console.log("Allowed email domains:", VERTO_ALLOWED_EMAIL_DOMAINS.join(", "));
   } else {
-    await Workspace.updateOne(
-      { _id: workspace._id },
+    await Chopspace.updateOne(
+      { _id: chopspace._id },
       { $set: { "settings.allowedEmailDomains": VERTO_ALLOWED_EMAIL_DOMAINS } },
     );
-    workspace = await Workspace.findById(workspace._id);
-    console.log("Workspace Verto already exists:", workspace!._id.toString());
+    chopspace = await Chopspace.findById(chopspace._id);
+    console.log("Chopspace Verto already exists:", chopspace!._id.toString());
     console.log("Allowed email domains:", VERTO_ALLOWED_EMAIL_DOMAINS.join(", "));
   }
 
-  const workspaceId = workspace._id;
+  const workspaceId = chopspace._id;
 
   await AllowedEmail.findOneAndUpdate(
     { workspaceId, email: vertoAdminEmail.toLowerCase() },
@@ -299,7 +299,7 @@ async function main() {
     name: 1,
   });
   if (primaryVendor) {
-    const timezone = workspace.settings?.timezone ?? DEFAULT_TIMEZONE;
+    const timezone = chopspace.settings?.timezone ?? DEFAULT_TIMEZONE;
     const weekStart = getNextMonday(timezone).toUTC().toJSDate();
     const now = DateTime.now().setZone(timezone);
     const orderWindowOpensAt = now.minus({ hours: 1 }).toUTC().toJSDate();

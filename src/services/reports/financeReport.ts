@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import { stringify } from "csv-stringify/sync";
-import { MenuWeek, Order, User, Vendor, Workspace } from "../../models/index.js";
+import { MenuWeek, Order, User, Vendor, Chopspace } from "../../models/index.js";
 import type { MenuWeekDocument } from "../../models/MenuWeek.js";
 import type { OrderDocument } from "../../models/Order.js";
 import { formatNaira, weekDateRangeLabel } from "../export/loadExportData.js";
@@ -57,7 +57,7 @@ export interface FinanceReportStaffRow {
 }
 
 export interface FinanceReportResponse {
-  workspace: { id: string; name: string; timezone: string };
+  chopspace: { id: string; name: string; timezone: string };
   period: {
     from: string;
     to: string;
@@ -345,10 +345,10 @@ export async function loadFinanceReport(
   toInput: string,
   granularity: FinanceReportGranularity,
 ): Promise<FinanceReportResponse> {
-  const workspace = await Workspace.findById(workspaceId);
-  if (!workspace) throw new Error("Workspace not found");
+  const chopspace = await Chopspace.findById(workspaceId);
+  if (!chopspace) throw new Error("Chopspace not found");
 
-  const timezone = workspace.settings?.timezone ?? "Africa/Lagos";
+  const timezone = chopspace.settings?.timezone ?? "Africa/Lagos";
   const from = DateTime.fromISO(fromInput, { zone: timezone }).startOf("day");
   const to = DateTime.fromISO(toInput, { zone: timezone }).endOf("day");
 
@@ -425,9 +425,9 @@ export async function loadFinanceReport(
       : weekBuckets;
 
   return {
-    workspace: {
-      id: workspace._id.toString(),
-      name: workspace.name,
+    chopspace: {
+      id: chopspace._id.toString(),
+      name: chopspace.name,
       timezone,
     },
     period: {
@@ -445,7 +445,7 @@ export async function loadFinanceReport(
 export function buildFinanceReportCsv(report: FinanceReportResponse): Buffer {
   const sections: string[] = [];
 
-  sections.push(`Finance report — ${report.workspace.name}`);
+  sections.push(`Finance report — ${report.chopspace.name}`);
   sections.push(
     `Period: ${report.period.from} to ${report.period.to} (${report.period.granularity})`,
   );

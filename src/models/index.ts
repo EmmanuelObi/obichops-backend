@@ -1,4 +1,4 @@
-export { Workspace, type WorkspaceDocument } from "./Workspace.js";
+export { Chopspace, type WorkspaceDocument } from "./Workspace.js";
 export { AllowedEmail, type AllowedEmailDocument } from "./AllowedEmail.js";
 export { User, type UserDocument } from "./User.js";
 export {
@@ -25,3 +25,13 @@ export {
   type PlatformAuditAction,
   PLATFORM_AUDIT_ACTIONS,
 } from "./PlatformAuditLog.js";
+export {
+  DeviceToken,
+  type DeviceTokenDocument,
+} from "./DeviceToken.js";
+export {
+  OnboardingRequest,
+  type OnboardingRequestDocument,
+  type OnboardingStatus,
+  ONBOARDING_STATUSES,
+} from "./OnboardingRequest.js";

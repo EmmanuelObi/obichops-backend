@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { MenuItem, MenuWeek, Vendor, Workspace } from "../models/index.js";
+import { MenuItem, MenuWeek, Vendor, Chopspace } from "../models/index.js";
 import type { MenuWeekDocument } from "../models/MenuWeek.js";
 import type { DayOfWeek } from "../types/days.js";
 import { calculateOrderTotals, countDistinctOrderDays, type LineItemInput } from "./orderTotals.js";
@@ -15,8 +15,8 @@ import {
 } from "./menuWeekWindow.js";
 
 export async function getWorkspaceTimezone(workspaceId: string): Promise<string> {
-  const workspace = await Workspace.findById(workspaceId);
-  return workspace?.settings?.timezone ?? DEFAULT_TIMEZONE;
+  const chopspace = await Chopspace.findById(workspaceId);
+  return chopspace?.settings?.timezone ?? DEFAULT_TIMEZONE;
 }
 
 export async function findCurrentMenuWeek(

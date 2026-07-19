@@ -7,8 +7,13 @@ import {
   requireSuperAdmin,
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
-import { Workspace } from "../models/index.js";
+import { Chopspace, OnboardingRequest } from "../models/index.js";
 import { inviteWorkspaceMember } from "../services/memberInvite.js";
+import {
+  approveOnboardingRequest,
+  rejectOnboardingRequest,
+  serializeOnboardingRequest,
+} from "../services/onboarding.js";
 import { listPlatformAuditLog, recordPlatformAudit } from "../services/platformAudit.js";
 import {
   getPlatformDashboard,
@@ -128,7 +133,7 @@ router.get(
     const { id } = req.params;
     const overview = await getWorkspaceOverview(String(id ?? ""));
     if (!overview) {
-      res.status(404).json({ error: "Workspace not found" });
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
     res.json(overview);
@@ -140,21 +145,21 @@ router.post(
   asyncHandler(async (req, res) => {
     const body = createWorkspaceSchema.parse(req.body);
     const actor = actorFromRequest(req as AuthenticatedRequest);
-    const workspace = await Workspace.create({
+    const chopspace = await Chopspace.create({
       name: body.name,
       slug: body.slug.toLowerCase(),
     });
 
     await recordPlatformAudit({
-      workspaceId: workspace._id.toString(),
+      workspaceId: chopspace._id.toString(),
       actorUserId: actor.userId,
       actorEmail: actor.email,
       action: "WORKSPACE_CREATED",
-      summary: `Created workspace "${workspace.name}"`,
-      metadata: { slug: workspace.slug },
+      summary: `Created chopspace "${chopspace.name}"`,
+      metadata: { slug: chopspace.slug },
     });
 
-    res.status(201).json({ workspace: serializeWorkspace(workspace) });
+    res.status(201).json({ chopspace: serializeWorkspace(chopspace) });
   }),
 );
 
@@ -163,15 +168,15 @@ router.patch(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json({ error: "Invalid workspace id" });
+      res.status(400).json({ error: "Invalid chopspace id" });
       return;
     }
 
     const body = patchWorkspaceSchema.parse(req.body);
     const actor = actorFromRequest(req as AuthenticatedRequest);
-    const existing = await Workspace.findById(id);
+    const existing = await Chopspace.findById(id);
     if (!existing) {
-      res.status(404).json({ error: "Workspace not found" });
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
@@ -193,24 +198,24 @@ router.patch(
       }
     }
 
-    const workspace = await Workspace.findByIdAndUpdate(id, update, {
+    const chopspace = await Chopspace.findByIdAndUpdate(id, update, {
       new: true,
       runValidators: true,
     });
-    if (!workspace) {
-      res.status(404).json({ error: "Workspace not found" });
+    if (!chopspace) {
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
     if (body.isActive !== undefined && body.isActive !== existing.isActive) {
       await recordPlatformAudit({
-        workspaceId: id,
+        workspaceId: String(id),
         actorUserId: actor.userId,
         actorEmail: actor.email,
         action: body.isActive ? "WORKSPACE_REACTIVATED" : "WORKSPACE_SUSPENDED",
         summary: body.isActive
-          ? `Reactivated workspace "${workspace.name}"`
-          : `Suspended workspace "${workspace.name}"`,
+          ? `Reactivated chopspace "${chopspace.name}"`
+          : `Suspended chopspace "${chopspace.name}"`,
       });
     } else if (
       body.name !== undefined ||
@@ -218,11 +223,11 @@ router.patch(
       body.settings !== undefined
     ) {
       await recordPlatformAudit({
-        workspaceId: id,
+        workspaceId: String(id),
         actorUserId: actor.userId,
         actorEmail: actor.email,
         action: "WORKSPACE_UPDATED",
-        summary: `Updated workspace "${workspace.name}"`,
+        summary: `Updated chopspace "${chopspace.name}"`,
         metadata: {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.slug !== undefined ? { slug: body.slug } : {}),
@@ -231,7 +236,7 @@ router.patch(
       });
     }
 
-    res.json({ workspace: serializeWorkspace(workspace) });
+    res.json({ chopspace: serializeWorkspace(chopspace) });
   }),
 );
 
@@ -240,12 +245,12 @@ router.post(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json({ error: "Invalid workspace id" });
+      res.status(400).json({ error: "Invalid chopspace id" });
       return;
     }
-    const workspace = await Workspace.findById(id);
-    if (!workspace) {
-      res.status(404).json({ error: "Workspace not found" });
+    const chopspace = await Chopspace.findById(id);
+    if (!chopspace) {
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
@@ -266,7 +271,7 @@ router.post(
         actorUserId: actor.userId,
         actorEmail: actor.email,
         action: "WORKSPACE_ADMIN_INVITED",
-        summary: `Invited admin ${email} to "${workspace.name}"`,
+        summary: `Invited admin ${email} to "${chopspace.name}"`,
         metadata: { email },
       });
 
@@ -286,8 +291,119 @@ router.post(
         }
         if (err.message === "DOMAIN_NOT_ALLOWED") {
           res.status(400).json({
-            error: "Email domain is not allowed for this workspace",
+            error: "Email domain is not allowed for this chopspace",
           });
+          return;
+        }
+      }
+      throw err;
+    }
+  }),
+);
+
+const onboardingStatusSchema = z.object({
+  status: z.enum(["PENDING", "APPROVED", "REJECTED"]).optional(),
+});
+
+const rejectOnboardingSchema = z.object({
+  reason: z.string().max(1000).trim().optional(),
+});
+
+router.get(
+  "/onboarding-requests",
+  asyncHandler(async (req, res) => {
+    const query = onboardingStatusSchema.parse(req.query);
+    const filter = query.status ? { status: query.status } : {};
+    const requests = await OnboardingRequest.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(200);
+    res.json({ requests: requests.map(serializeOnboardingRequest) });
+  }),
+);
+
+router.post(
+  "/onboarding-requests/:id/approve",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ error: "Invalid request id" });
+      return;
+    }
+    const actor = actorFromRequest(req as AuthenticatedRequest);
+
+    try {
+      const result = await approveOnboardingRequest({
+        requestId: String(id),
+        reviewerEmail: actor.email,
+      });
+
+      await recordPlatformAudit({
+        workspaceId: result.chopspace.id,
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+        action: "ONBOARDING_APPROVED",
+        summary: `Approved onboarding for "${result.chopspace.name}"`,
+        metadata: { slug: result.chopspace.slug, email: result.request.email },
+      });
+
+      res.json(result);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === "NOT_FOUND") {
+          res.status(404).json({ error: "Onboarding request not found" });
+          return;
+        }
+        if (err.message === "ALREADY_REVIEWED") {
+          res.status(409).json({ error: "This request has already been reviewed" });
+          return;
+        }
+        if (err.message === "SLUG_TAKEN") {
+          res.status(409).json({
+            error: "A chopspace with this slug already exists. Reject the request or rename the existing chopspace.",
+          });
+          return;
+        }
+      }
+      throw err;
+    }
+  }),
+);
+
+router.post(
+  "/onboarding-requests/:id/reject",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      res.status(400).json({ error: "Invalid request id" });
+      return;
+    }
+    const body = rejectOnboardingSchema.parse(req.body ?? {});
+    const actor = actorFromRequest(req as AuthenticatedRequest);
+
+    try {
+      const request = await rejectOnboardingRequest({
+        requestId: String(id),
+        reviewerEmail: actor.email,
+        reason: body.reason,
+      });
+
+      await recordPlatformAudit({
+        actorUserId: actor.userId,
+        actorEmail: actor.email,
+        action: "ONBOARDING_REJECTED",
+        summary: `Rejected onboarding for "${request.businessName}"`,
+        metadata: { slug: request.slug, email: request.email },
+      });
+
+      res.json({ request });
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.message === "NOT_FOUND") {
+          res.status(404).json({ error: "Onboarding request not found" });
+          return;
+        }
+        if (err.message === "ALREADY_REVIEWED") {
+          res.status(409).json({ error: "This request has already been reviewed" });
           return;
         }
       }
@@ -301,23 +417,23 @@ router.post(
   asyncHandler(async (req, res) => {
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
-      res.status(400).json({ error: "Invalid workspace id" });
+      res.status(400).json({ error: "Invalid chopspace id" });
       return;
     }
 
-    const workspace = await Workspace.findById(id);
-    if (!workspace) {
-      res.status(404).json({ error: "Workspace not found" });
+    const chopspace = await Chopspace.findById(id);
+    if (!chopspace) {
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
     const actor = actorFromRequest(req as AuthenticatedRequest);
     const entry = await recordPlatformAudit({
-      workspaceId: id,
+      workspaceId: String(id),
       actorUserId: actor.userId,
       actorEmail: actor.email,
       action: "WORKSPACE_ENTERED",
-      summary: `Entered manage mode for "${workspace.name}"`,
+      summary: `Entered manage mode for "${chopspace.name}"`,
     });
 
     res.status(201).json({ entry });

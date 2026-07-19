@@ -15,7 +15,7 @@ export function requireStaff(
     return;
   }
   if (!req.auth.workspaceId) {
-    res.status(403).json({ error: "Workspace context required" });
+    res.status(403).json({ error: "Chopspace context required" });
     return;
   }
   next();

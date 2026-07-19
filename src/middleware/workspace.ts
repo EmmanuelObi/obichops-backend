@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import type { NextFunction, Response } from "express";
-import { Workspace } from "../models/index.js";
+import { Chopspace } from "../models/index.js";
 import type { AuthenticatedRequest } from "./auth.js";
 
 export function resolveWorkspaceId(req: AuthenticatedRequest): string | null {
@@ -9,7 +9,8 @@ export function resolveWorkspaceId(req: AuthenticatedRequest): string | null {
   if (auth.workspaceId) return auth.workspaceId;
 
   if (auth.role === "SUPER_ADMIN") {
-    const header = req.headers["x-workspace-id"];
+    const header =
+      req.headers["x-chopspace-id"] ?? req.headers["x-workspace-id"];
     const value = Array.isArray(header) ? header[0] : header;
     if (value && mongoose.isValidObjectId(value)) {
       return value;
@@ -25,7 +26,7 @@ export function requireWorkspaceContext(
 ): string | null {
   const workspaceId = resolveWorkspaceId(req);
   if (!workspaceId) {
-    res.status(400).json({ error: "Workspace context required" });
+    res.status(400).json({ error: "Chopspace context required" });
     return null;
   }
   return workspaceId;
@@ -49,9 +50,9 @@ export function requireActiveWorkspace(
       return;
     }
 
-    const workspace = await Workspace.findById(workspaceId).select("isActive");
-    if (!workspace?.isActive) {
-      res.status(403).json({ error: "This workspace has been suspended" });
+    const chopspace = await Chopspace.findById(workspaceId).select("isActive");
+    if (!chopspace?.isActive) {
+      res.status(403).json({ error: "This chopspace has been suspended" });
       return;
     }
 

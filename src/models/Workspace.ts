@@ -45,6 +45,7 @@ export type WorkspaceDocument = InferSchemaType<typeof workspaceSchema> & {
   _id: mongoose.Types.ObjectId;
 };
 
-export const Workspace: Model<WorkspaceDocument> =
-  mongoose.models.Workspace ??
-  mongoose.model<WorkspaceDocument>("Workspace", workspaceSchema);
+// Keep Mongo collection `workspaces` (legacy name) while exposing Chopspace in code.
+export const Chopspace: Model<WorkspaceDocument> =
+  mongoose.models.Chopspace ??
+  mongoose.model<WorkspaceDocument>("Chopspace", workspaceSchema, "workspaces");

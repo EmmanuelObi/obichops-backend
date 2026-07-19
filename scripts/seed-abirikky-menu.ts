@@ -1,7 +1,7 @@
 import "dotenv/config";
 import mongoose from "mongoose";
 import { connectDb } from "../src/db/connect.js";
-import { MenuItem, MenuWeek, Vendor, Workspace } from "../src/models/index.js";
+import { MenuItem, MenuWeek, Vendor, Chopspace } from "../src/models/index.js";
 import type { DayOfWeek } from "../src/types/days.js";
 
 const VERTO_SLUG = "verto";
@@ -133,26 +133,26 @@ async function upsertMenuItem(
 async function main() {
   await connectDb();
 
-  const workspace = await Workspace.findOne({ slug: VERTO_SLUG, isActive: true });
-  if (!workspace) {
+  const chopspace = await Chopspace.findOne({ slug: VERTO_SLUG, isActive: true });
+  if (!chopspace) {
     throw new Error(
-      `Workspace "${VERTO_SLUG}" not found. Run npm run seed first.`,
+      `Chopspace "${VERTO_SLUG}" not found. Run npm run seed first.`,
     );
   }
 
   let vendor = await Vendor.findOne({
-    workspaceId: workspace._id,
+    workspaceId: chopspace._id,
     name: VENDOR_NAME,
   });
   if (!vendor) {
     vendor = await Vendor.findOne({
-      workspaceId: workspace._id,
+      workspaceId: chopspace._id,
       email: VENDOR_EMAIL.toLowerCase(),
     });
   }
   if (!vendor) {
     vendor = await Vendor.create({
-      workspaceId: workspace._id,
+      workspaceId: chopspace._id,
       name: VENDOR_NAME,
       email: VENDOR_EMAIL.toLowerCase(),
       isActive: true,
@@ -173,7 +173,7 @@ async function main() {
   >) {
     for (const entry of items) {
       const result = await upsertMenuItem(
-        workspace._id,
+        chopspace._id,
         vendor._id,
         day,
         entry,
@@ -187,7 +187,7 @@ async function main() {
   const setActiveVendor = process.env.SET_ACTIVE_VENDOR !== "false";
   if (setActiveVendor) {
     const openWeek = await MenuWeek.findOne({
-      workspaceId: workspace._id,
+      workspaceId: chopspace._id,
       status: "OPEN",
     });
     if (openWeek) {

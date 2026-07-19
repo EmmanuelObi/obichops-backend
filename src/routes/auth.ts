@@ -8,7 +8,7 @@ import {
   requireAuth,
   type AuthenticatedRequest,
 } from "../middleware/auth.js";
-import { AllowedEmail, PasswordResetToken, User, Workspace } from "../models/index.js";
+import { AllowedEmail, DeviceToken, PasswordResetToken, User, Chopspace } from "../models/index.js";
 import {
   isWorkspaceActive,
   resolveWorkspaceForAuth,
@@ -55,6 +55,15 @@ const changePasswordSchema = z.object({
   lastName: z.string().trim().min(1).optional(),
 });
 
+const deviceTokenSchema = z.object({
+  token: z.string().min(1),
+  platform: z.enum(["ios", "android", "unknown"]).optional(),
+});
+
+const unregisterDeviceTokenSchema = z.object({
+  token: z.string().min(1),
+});
+
 async function serializeUser(user: {
   _id: mongoose.Types.ObjectId;
   email: string;
@@ -69,9 +78,9 @@ async function serializeUser(user: {
   let workspaceSlug: string | null = null;
   let workspaceName: string | null = null;
   if (user.workspaceId) {
-    const workspace = await Workspace.findById(user.workspaceId).select("slug name");
-    workspaceSlug = workspace?.slug ?? null;
-    workspaceName = workspace?.name ?? null;
+    const chopspace = await Chopspace.findById(user.workspaceId).select("slug name");
+    workspaceSlug = chopspace?.slug ?? null;
+    workspaceName = chopspace?.name ?? null;
   }
 
   const displayName = getUserDisplayName(user);
@@ -102,24 +111,24 @@ router.post(
     );
 
     if (resolution.kind === "slug_not_found") {
-      res.status(404).json({ error: "Workspace not found" });
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
     if (resolution.kind === "ambiguous") {
       res.status(400).json({
-        error: "Email domain is used by multiple workspaces. Contact your admin.",
+        error: "Email domain is used by multiple chopspaces. Contact your admin.",
       });
       return;
     }
     if (resolution.kind === "platform") {
-      res.status(404).json({ error: "Workspace not found" });
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
 
     const workspaceId = resolution.workspaceId;
 
     if (!(await isWorkspaceActive(workspaceId))) {
-      res.status(403).json({ error: "This workspace has been suspended" });
+      res.status(403).json({ error: "This chopspace has been suspended" });
       return;
     }
 
@@ -128,7 +137,7 @@ router.post(
       email: body.email.toLowerCase(),
     });
     if (!allowed) {
-      res.status(403).json({ error: "Email is not allowed for this workspace" });
+      res.status(403).json({ error: "Email is not allowed for this chopspace" });
       return;
     }
 
@@ -177,12 +186,12 @@ router.post(
     );
 
     if (resolution.kind === "slug_not_found") {
-      res.status(404).json({ error: "Workspace not found" });
+      res.status(404).json({ error: "Chopspace not found" });
       return;
     }
     if (resolution.kind === "ambiguous") {
       res.status(400).json({
-        error: "Email domain is used by multiple workspaces. Contact your admin.",
+        error: "Email domain is used by multiple chopspaces. Contact your admin.",
       });
       return;
     }
@@ -208,7 +217,7 @@ router.post(
     }
 
     if (user.workspaceId && !(await isWorkspaceActive(user.workspaceId.toString()))) {
-      res.status(403).json({ error: "This workspace has been suspended" });
+      res.status(403).json({ error: "This chopspace has been suspended" });
       return;
     }
 
@@ -371,6 +380,58 @@ router.get(
       return;
     }
     res.json({ user: await serializeUser(user) });
+  }),
+);
+
+router.post(
+  "/device-tokens",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const body = deviceTokenSchema.parse(req.body);
+    const auth = (req as AuthenticatedRequest).auth!;
+
+    if (!auth.workspaceId) {
+      res.status(400).json({ error: "Chopspace required for push notifications" });
+      return;
+    }
+
+    const token = body.token.trim();
+    if (
+      !token.startsWith("ExponentPushToken[") &&
+      !token.startsWith("ExpoPushToken[")
+    ) {
+      res.status(400).json({ error: "Invalid Expo push token" });
+      return;
+    }
+
+    await DeviceToken.findOneAndUpdate(
+      { token },
+      {
+        token,
+        userId: auth.sub,
+        workspaceId: auth.workspaceId,
+        platform: body.platform ?? "unknown",
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true },
+    );
+
+    res.json({ ok: true });
+  }),
+);
+
+router.delete(
+  "/device-tokens",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const body = unregisterDeviceTokenSchema.parse(req.body);
+    const auth = (req as AuthenticatedRequest).auth!;
+
+    await DeviceToken.deleteOne({
+      token: body.token.trim(),
+      userId: auth.sub,
+    });
+
+    res.json({ ok: true });
   }),
 );
 
