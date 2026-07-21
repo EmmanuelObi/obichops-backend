@@ -134,6 +134,11 @@ router.post(
       ? DateTime.fromISO(body.orderWindowClosesAt, { zone: timezone }).toUTC().toJSDate()
       : defaults.orderWindowClosesAt;
 
+    if (orderWindowClosesAt <= orderWindowOpensAt) {
+      res.status(400).json({ error: "Ordering close time must be after open time" });
+      return;
+    }
+
     const orderableDays = body.orderableDays ?? DEFAULT_ORDERABLE_DAYS;
     const maxOrderDaysPerStaff =
       body.maxOrderDaysPerStaff ?? DEFAULT_MAX_ORDER_DAYS_PER_STAFF;
@@ -243,6 +248,11 @@ router.patch(
       })
         .toUTC()
         .toJSDate();
+    }
+
+    if (week.orderWindowClosesAt <= week.orderWindowOpensAt) {
+      res.status(400).json({ error: "Ordering close time must be after open time" });
+      return;
     }
 
     const openingWeek = body.status === "OPEN" && week.status === "DRAFT";

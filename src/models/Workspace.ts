@@ -18,9 +18,11 @@ const workspaceSettingsSchema = new Schema(
       default: DEFAULT_ORDERABLE_DAYS,
     },
     reminderWindowOpen: { type: Boolean, default: true }, // ORDERING_OPEN email
+    reminderOpeningDayNudge: { type: Boolean, default: true }, // OPENING_DAY_NUDGE — open day 5:00 PM
     reminderPendingNudge: { type: Boolean, default: true }, // FRIDAY_NUDGE_1 — 5:00 PM
     reminderFridayEvening: { type: Boolean, default: true }, // FRIDAY_NUDGE_2 — 8:00 PM
     reminderFinalNudge: { type: Boolean, default: true }, // SATURDAY_NUDGE — 8:00 AM
+    reminderClosingSoon: { type: Boolean, default: true }, // CLOSING_SOON — 1h before close
     allowedEmailDomains: {
       type: [{ type: String, lowercase: true, trim: true }],
       default: [],

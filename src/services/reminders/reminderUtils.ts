@@ -4,10 +4,13 @@ import { getEmailAdapter } from "../../email/factory.js";
 import { AllowedEmail, Order, ReminderLog, User } from "../../models/index.js";
 import {
   CRON_WINDOW_MINUTES,
+  REMINDER_CLOSING_SOON_HOURS_BEFORE,
   REMINDER_FRIDAY_AFTERNOON_HOUR,
   REMINDER_FRIDAY_AFTERNOON_MINUTE,
   REMINDER_FRIDAY_EVENING_HOUR,
   REMINDER_FRIDAY_EVENING_MINUTE,
+  REMINDER_OPENING_DAY_HOUR,
+  REMINDER_OPENING_DAY_MINUTE,
   type ReminderType,
 } from "../../types/reminders.js";
 import { sendReminderPushes } from "../push/expoPush.js";
@@ -22,6 +25,15 @@ export function isDueWithinWindow(
   return nowMs >= targetMs && nowMs < targetMs + windowMinutes * 60 * 1000;
 }
 
+/** True when fire time falls inside the ordering window. */
+export function isFireTimeInOrderWindow(
+  fireAt: Date,
+  opensAt: Date,
+  closesAt: Date,
+): boolean {
+  return fireAt >= opensAt && fireAt < closesAt;
+}
+
 export function localTimeOnCloseDay(
   closesAt: Date,
   timezone: string,
@@ -31,6 +43,26 @@ export function localTimeOnCloseDay(
   const closeDay = DateTime.fromJSDate(closesAt, { zone: "utc" }).setZone(timezone);
   return closeDay
     .set({ hour, minute, second: 0, millisecond: 0 })
+    .toUTC()
+    .toJSDate();
+}
+
+export function openingDayNudgeAt(opensAt: Date, timezone: string): Date {
+  const openDay = DateTime.fromJSDate(opensAt, { zone: "utc" }).setZone(timezone);
+  return openDay
+    .set({
+      hour: REMINDER_OPENING_DAY_HOUR,
+      minute: REMINDER_OPENING_DAY_MINUTE,
+      second: 0,
+      millisecond: 0,
+    })
+    .toUTC()
+    .toJSDate();
+}
+
+export function closingSoonAt(closesAt: Date): Date {
+  return DateTime.fromJSDate(closesAt, { zone: "utc" })
+    .minus({ hours: REMINDER_CLOSING_SOON_HOURS_BEFORE })
     .toUTC()
     .toJSDate();
 }

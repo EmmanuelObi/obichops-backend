@@ -91,6 +91,7 @@ router.get(
         id: chopspace._id.toString(),
         name: chopspace.name,
         slug: chopspace.slug,
+        timezone: chopspace.settings?.timezone ?? "Africa/Lagos",
         allowedEmailDomains,
       },
     });
