@@ -22,12 +22,12 @@ export interface PackMenuItemForDay {
 export function computePackQuantityForDay(
   foodLines: Array<{ quantity: number; packsRequired: number }>,
 ): number {
-  const extraPacks = foodLines.reduce(
+  const packsNeeded = foodLines.reduce(
     (sum, line) => sum + line.packsRequired * line.quantity,
     0,
   );
-  // Every order day includes 1 base pack, plus any extra packs from food items.
-  return 1 + Math.ceil(extraPacks);
+  // Packs come only from food items that require them (no base pack per day).
+  return Math.ceil(packsNeeded);
 }
 
 export function computePackLineItems(input: {
@@ -45,12 +45,14 @@ export function computePackLineItems(input: {
   const packLines: PackValidatedLineItem[] = [];
 
   for (const [dayOfWeek, dayFoodLines] of linesByDay) {
+    const quantity = computePackQuantityForDay(dayFoodLines);
+    if (quantity <= 0) continue;
+
     const packItem = input.packMenuItemsByDay.get(dayOfWeek);
     if (!packItem) {
       throw new Error(`Pack price is not configured for ${dayOfWeek}`);
     }
 
-    const quantity = computePackQuantityForDay(dayFoodLines);
     packLines.push({
       menuItemId: packItem.menuItemId,
       dayOfWeek,
